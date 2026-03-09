@@ -43,7 +43,7 @@ const menuItems = [
         icon: 'fa-pen-to-square',
         color: 'text-[var(--color-morandi)]',
         bgColor: 'bg-blue-50',
-        url: 'my-tasks.html',
+        url: 'cwt-list.html',
         roles: ['ADMIN', 'TEACHER'] // 教師核心功能
     },
     {
