@@ -51,9 +51,173 @@ const reviewStageLabel = {
     'peer': '互審', 'expert': '專審', 'final': '總審'
 };
 
+const revisionReviewingStatuses = ['peer_reviewing', 'expert_reviewing', 'final_reviewing'];
+const revisionEditingStatuses = ['peer_editing', 'expert_editing', 'final_editing'];
+
+const tabStatusFilterOptions = {
+    compose: [
+        { value: 'all', label: '所有狀態' },
+        { value: 'draft', label: '草稿' },
+        { value: 'completed', label: '命題完成' },
+        { value: 'pending', label: '已送審' }
+    ],
+    revision: [
+        { value: 'all', label: '所有狀態' },
+        { value: 'reviewing', label: '鎖定審查中' },
+        { value: 'editing', label: '需修題' }
+    ],
+    history: [
+        { value: 'all', label: '所有狀態' },
+        { value: 'adopted', label: '採用' },
+        { value: 'rejected', label: '不採用' }
+    ]
+};
+
+const defaultPageSize = 12;
 // ===================================================================
 // Mock 資料 — 命題教師 (T1001 劉雅婷) 的配額與試題
 // ===================================================================
+
+/** 題型欄位契約 */
+const qTypeConfig = {
+    single: {
+        hasStem: true,
+        stemLabel: '題幹',
+        hasOptions: true,
+        hasPassage: false,
+        hasSubQuestions: false,
+        subQuestionMode: null,
+        hasAudio: false
+    },
+    select: {
+        hasStem: true,
+        stemLabel: '題幹',
+        hasOptions: true,
+        hasPassage: false,
+        hasSubQuestions: false,
+        subQuestionMode: null,
+        hasAudio: false
+    },
+    longText: {
+        hasStem: true,
+        stemLabel: '作文題幹',
+        hasOptions: false,
+        hasPassage: false,
+        hasSubQuestions: false,
+        subQuestionMode: null,
+        hasAudio: false
+    },
+    readGroup: {
+        hasStem: false,
+        stemLabel: '',
+        hasOptions: false,
+        hasPassage: true,
+        passageLabel: '閱讀文章',
+        hasSubQuestions: true,
+        subQuestionMode: 'choice',
+        hasAudio: false
+    },
+    shortGroup: {
+        hasStem: false,
+        stemLabel: '',
+        hasOptions: false,
+        hasPassage: true,
+        passageLabel: '短文內容',
+        hasSubQuestions: true,
+        subQuestionMode: 'freeResponse',
+        hasAudio: false
+    },
+    listen: {
+        hasStem: true,
+        stemLabel: '題幹',
+        hasOptions: true,
+        hasPassage: false,
+        hasSubQuestions: false,
+        subQuestionMode: null,
+        hasAudio: true
+    },
+    listenGroup: {
+        hasStem: false,
+        stemLabel: '',
+        hasOptions: false,
+        hasPassage: true,
+        passageLabel: '聽力腳本',
+        hasSubQuestions: true,
+        subQuestionMode: 'choice',
+        hasAudio: true
+    }
+};
+
+const optionLabels = ['A', 'B', 'C', 'D'];
+
+const getTypeConfig = (type) => qTypeConfig[type] || qTypeConfig.single;
+
+const getDefaultSubQuestion = (mode = 'choice') => (
+    mode === 'freeResponse'
+        ? { stem: '', analysis: '' }
+        : {
+            stem: '',
+            answer: '',
+            options: optionLabels.map(label => ({ label, text: '' }))
+        }
+);
+
+const getQuestionSearchText = (question) => {
+    const segments = [
+        question.id,
+        question.stem,
+        question.passage,
+        question.analysis,
+        question.reviewComment,
+        ...(question.options || []).map(option => option.text),
+        ...(question.subQuestions || []).flatMap((subQuestion) => [
+            subQuestion.stem,
+            subQuestion.analysis,
+            ...(subQuestion.options || []).map(option => option.text)
+        ])
+    ];
+
+    return segments.filter(Boolean).map(segment => stripHtml(segment)).join(' ').toLowerCase();
+};
+
+const getQuestionPreviewMeta = (question) => {
+    const config = getTypeConfig(question.type);
+
+    if (config.hasSubQuestions) {
+        if (config.subQuestionMode === 'freeResponse') {
+            return {
+                stemPreview: stripHtml(question.passage || '(尚未輸入短文內容)'),
+                optionPreview: '<span class="text-gray-400 text-xs">含 ' + ((question.subQuestions || []).length) + ' 道自由作答子題</span>'
+            };
+        }
+
+        return {
+            stemPreview: stripHtml(question.passage || '(尚未輸入題組內容)'),
+            optionPreview: '<span class="text-gray-400 text-xs">含 ' + ((question.subQuestions || []).length) + ' 道選擇子題</span>'
+        };
+    }
+
+    if (question.type === 'longText') {
+        return {
+            stemPreview: stripHtml(question.stem || '(尚未輸入作文題幹)'),
+            optionPreview: '<span class="text-gray-400 text-xs">作文題，無選項</span>'
+        };
+    }
+
+    if (question.type === 'listen') {
+        return {
+            stemPreview: stripHtml(question.stem || '(尚未輸入聽力題幹)'),
+            optionPreview: '<span class="text-gray-400 text-xs">' + (question.audioUrl ? ('音檔：' + question.audioUrl) : '尚未上傳音檔') + '</span>'
+        };
+    }
+
+    return {
+        stemPreview: stripHtml(question.stem || '(尚未輸入題幹)'),
+        optionPreview: (question.options || [])
+            .map(option => '<span class="inline-block mr-2">(' + option.label + ') ' + truncate(stripHtml(option.text || ''), 8) + '</span>')
+            .join('')
+    };
+};
 
 /** 教師在此梯次被指派的命題配額 */
 const myQuotasDb = {
@@ -162,18 +326,13 @@ let myQuestionsDb = [
     {
         id: 'Q-2602-M006', projectId: 'P2026-01', type: 'longText', level: '中高級', difficulty: 'medium',
         status: 'draft',
-        stem: '閱讀以下短文後，回答問題。',
-        passage: '臺灣位於亞熱帶地區，四季分明，物產豐富。因地理位置特殊，兼具海洋性與大陸性氣候的特徵。山地面積佔全島約三分之二，平原主要分布於西部沿海地區。',
-        options: [
-            { label: 'A', text: '臺灣全島皆為平原地形' }, { label: 'B', text: '臺灣的山地面積大於平原' },
-            { label: 'C', text: '臺灣位於溫帶地區' }, { label: 'D', text: '臺灣只有海洋性氣候' }
-        ],
-        answer: 'B', analysis: '文中明確指出「山地面積佔全島約三分之二」，故山地面積大於平原。',
+        stem: '請以「如果課本外也有教室」為題，撰寫一篇作文。文章需結合一段你在校園、家庭或社區中的真實觀察，說明你曾在哪裡學到課本之外的重要事情，並寫出這段經驗如何改變你看待學習的方式。字數以 500 至 700 字為原則。',
+        options: [],
+        answer: '', analysis: '本題為作文題，重點在於檢視學生能否結合具體經驗、清楚敘事並提出反思。評閱時可觀察立意是否明確、材料是否充實，以及段落組織與語言表達是否流暢。',
         createdAt: '2026-03-06 11:00', updatedAt: '2026-03-06 11:00',
         returnCount: 0, reviewComment: null, reviewerName: null, reviewStage: null, revisionReply: '',
         history: [{ time: '2026-03-06 11:00', user: '劉雅婷', action: '建立草稿', comment: '' }]
-    },
-    {
+    },{
         id: 'Q-2602-M007', projectId: 'P2026-01', type: 'listen', level: '難度二', difficulty: 'medium',
         status: 'draft',
         stem: '請聽一段對話，回答下列問題：對話中的男子想要做什麼？',
@@ -194,21 +353,58 @@ let myQuestionsDb = [
         passage: '春天來了，小鳥在枝頭歌唱，花兒在路旁綻放。孩子們在公園裡奔跑嬉戲，大人們在樹蔭下閒聊。這是一個充滿生機的季節。',
         subQuestions: [
             {
-                stem: '文中描寫的季節有什麼特點？',
-                options: [
-                    { label: 'A', text: '蕭瑟冷清' }, { label: 'B', text: '充滿生機' },
-                    { label: 'C', text: '炎熱乾燥' }, { label: 'D', text: '白雪皚皚' }
-                ],
-                answer: 'B'
+                stem: '請根據短文內容，說明作者如何透過景物描寫呈現春天的氣氛。',
+                analysis: '作答時可抓住「小鳥歌唱」、「花兒綻放」、「孩子奔跑」等具體描寫，說明作者如何藉由聲音、色彩與人物活動營造充滿活力的春日景象。'
+            },
+            {
+                stem: '如果你也在這座公園裡，最可能觀察到什麼畫面？請寫出你的想像並說明理由。',
+                analysis: '本題重點在於學生是否能延伸短文情境，提出合理的觀察與感受，並以短文中的線索支持自己的想法。'
             }
         ],
         options: [], answer: '',
-        analysis: '文末直接點明「充滿生機的季節」，故答案為 B。',
+        analysis: '',
         createdAt: '2026-03-08 09:00', updatedAt: '2026-03-09 08:00',
         returnCount: 0, reviewComment: null, reviewerName: null, reviewStage: null, revisionReply: '',
         history: [
             { time: '2026-03-08 09:00', user: '劉雅婷', action: '建立草稿', comment: '' },
             { time: '2026-03-09 08:00', user: '劉雅婷', action: '命題完成', comment: '' }
+        ]
+    },
+    {
+        id: 'Q-2602-M009', projectId: 'P2026-01', type: 'listenGroup', level: '難度三', difficulty: 'medium',
+        status: 'completed',
+        stem: '',
+        passage: '請先聆聽一段廣播訪談。主持人邀請返鄉創業的青年分享，他如何把家鄉廢棄穀倉改造成社區共學空間，並帶動在地長者與學生一起參與課程。',
+        audioUrl: 'demo_audio_group_001.mp3',
+        subQuestions: [
+            {
+                stem: '根據訪談內容，這位青年返鄉後最先進行的工作是什麼？',
+                options: [
+                    { label: 'A', text: '募集企業贊助' },
+                    { label: 'B', text: '整理閒置穀倉空間' },
+                    { label: 'C', text: '招募外地講師' },
+                    { label: 'D', text: '成立觀光工廠' }
+                ],
+                answer: 'B'
+            },
+            {
+                stem: '主持人認為這個計畫最有價值的地方是什麼？',
+                options: [
+                    { label: 'A', text: '提高農產品售價' },
+                    { label: 'B', text: '吸引大量觀光客' },
+                    { label: 'C', text: '讓不同世代在同一空間學習' },
+                    { label: 'D', text: '增加地方夜市收入' }
+                ],
+                answer: 'C'
+            }
+        ],
+        options: [], answer: '',
+        analysis: '本題組聚焦在聽取重點與歸納訪談主旨。作答時需掌握受訪者的行動順序，以及主持人總結時提到的核心價值。',
+        createdAt: '2026-03-08 10:30', updatedAt: '2026-03-09 09:10',
+        returnCount: 0, reviewComment: null, reviewerName: null, reviewStage: null, revisionReply: '',
+        history: [
+            { time: '2026-03-08 10:30', user: '劉雅婷', action: '建立草稿', comment: '' },
+            { time: '2026-03-09 09:10', user: '劉雅婷', action: '命題完成', comment: '聽力題組含 2 道子題' }
         ]
     },
 
@@ -355,6 +551,10 @@ let formMode = 'create';          // 'create' | 'edit' | 'revision' | 'view'
 let quillInstance = null;         // Quill 編輯器實例
 let activeEditableField = null;   // 目前正在編輯的欄位 DOM 元素
 let activeFieldKey = null;        // 目前正在編輯的欄位 key (如 'stem', 'analysis', 'passage')
+let isFormSidebarCollapsed = false; // 左側題目屬性欄是否收合
+let quillCloseTimer = null;       // Quill 抽屜收合動畫計時器
+let currentPage = 1;              // 列表目前頁碼
+let pageSize = defaultPageSize;   // 每頁顯示筆數
 
 
 // ===================================================================
@@ -463,6 +663,7 @@ const initTabs = () => {
 
 const switchTab = (tab) => {
     currentTab = tab;
+    currentPage = 1;
 
     // 更新 Tab 按鈕樣式
     document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -501,11 +702,18 @@ const renderTabContent = () => {
     else if (currentTab === 'revision') currentQuestions = revisionQ;
     else currentQuestions = historyQ;
 
+    renderStatusFilterOptions();
+    const pageSizeSelect = document.getElementById('pageSizeSelect');
+    if (pageSizeSelect) {
+        pageSizeSelect.value = String(pageSize);
+    }
+
     // 套用篩選條件
     filteredQuestions = applyFilters(currentQuestions);
 
     // 排序
     filteredQuestions = sortQuestions(filteredQuestions);
+    currentPage = Math.min(currentPage, getTotalPages(filteredQuestions.length));
 
     // 渲染列表
     renderQuestionList();
@@ -583,11 +791,13 @@ const applyFilters = (questions) => {
     const keyword = document.getElementById('filterKeyword').value.trim().toLowerCase();
     const typeVal = document.getElementById('filterType').value;
     const levelVal = document.getElementById('filterLevel').value;
+    const statusVal = document.getElementById('filterStatus')?.value || 'all';
 
     return questions.filter(q => {
-        if (keyword && !q.id.toLowerCase().includes(keyword) && !q.stem.toLowerCase().includes(keyword)) return false;
+        if (keyword && !getQuestionSearchText(q).includes(keyword)) return false;
         if (typeVal !== 'all' && q.type !== typeVal) return false;
         if (levelVal !== 'all' && q.level !== levelVal) return false;
+        if (!matchesStatusFilter(q, statusVal)) return false;
         return true;
     });
 };
@@ -612,13 +822,29 @@ const sortQuestions = (questions) => {
 };
 
 // 監聽篩選欄位變化
-document.getElementById('filterKeyword')?.addEventListener('input', () => renderTabContent());
+document.getElementById('filterKeyword')?.addEventListener('input', () => {
+    currentPage = 1;
+    renderTabContent();
+});
 document.getElementById('filterType')?.addEventListener('change', (e) => {
+    currentPage = 1;
     // 依題型切換等級下拉選項（聽力 → 難度一~五；一般 → 初級~優級）
     syncLevelDropdown(document.getElementById('filterLevel'), e.target.value);
     renderTabContent();
 });
-document.getElementById('filterLevel')?.addEventListener('change', () => renderTabContent());
+document.getElementById('filterLevel')?.addEventListener('change', () => {
+    currentPage = 1;
+    renderTabContent();
+});
+document.getElementById('filterStatus')?.addEventListener('change', () => {
+    currentPage = 1;
+    renderTabContent();
+});
+document.getElementById('pageSizeSelect')?.addEventListener('change', (e) => {
+    pageSize = Number(e.target.value) || defaultPageSize;
+    currentPage = 1;
+    renderTabContent();
+});
 
 /**
  * 依據題型切換等級下拉選項的顯示
@@ -650,6 +876,104 @@ const syncLevelDropdown = (levelSelect, typeValue) => {
     }
 };
 
+const matchesStatusFilter = (question, statusValue) => {
+    if (statusValue === 'all') return true;
+
+    if (currentTab === 'revision') {
+        if (statusValue === 'reviewing') return revisionReviewingStatuses.includes(question.status);
+        if (statusValue === 'editing') return revisionEditingStatuses.includes(question.status);
+    }
+
+    return question.status === statusValue;
+};
+
+const renderStatusFilterOptions = () => {
+    const statusSelect = document.getElementById('filterStatus');
+    if (!statusSelect) return;
+
+    const currentValue = statusSelect.value || 'all';
+    const options = tabStatusFilterOptions[currentTab] || tabStatusFilterOptions.compose;
+    statusSelect.innerHTML = options.map(option => `<option value="${option.value}">${option.label}</option>`).join('');
+    statusSelect.value = options.some(option => option.value === currentValue) ? currentValue : 'all';
+};
+
+const getTotalPages = (totalItems = filteredQuestions.length) => Math.max(Math.ceil(totalItems / pageSize), 1);
+
+const getVisibleQuestions = () => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return filteredQuestions.slice(startIndex, startIndex + pageSize);
+};
+
+const updateListMeta = (totalItems, totalPages) => {
+    document.getElementById('listCount').textContent = totalItems;
+    const pageMeta = document.getElementById('listPageMeta');
+    if (!pageMeta) return;
+    pageMeta.textContent = totalItems > 0 ? `・ 第 ${currentPage} / ${totalPages} 頁` : '';
+};
+
+const goToListPage = (page) => {
+    const totalPages = getTotalPages();
+    currentPage = Math.min(Math.max(page, 1), totalPages);
+    renderQuestionList();
+    document.getElementById('questionListContainer')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+};
+
+const renderPagination = (totalItems, totalPages) => {
+    const container = document.getElementById('listPagination');
+    if (!container) return;
+
+    if (totalItems === 0 || totalPages <= 1) {
+        container.classList.add('hidden');
+        container.innerHTML = '';
+        return;
+    }
+
+    const startIndex = (currentPage - 1) * pageSize + 1;
+    const endIndex = Math.min(currentPage * pageSize, totalItems);
+    const pageButtons = [];
+    const windowStart = Math.max(1, currentPage - 1);
+    const windowEnd = Math.min(totalPages, currentPage + 1);
+
+    const buildPageButton = (page) => `
+        <button onclick="goToListPage(${page})"
+            class="min-w-9 px-3 py-2 text-sm rounded-lg border transition-colors ${page === currentPage ? 'border-[var(--color-morandi)] bg-[var(--color-morandi)] text-white font-bold' : 'border-gray-200 bg-white text-gray-600 hover:border-[var(--color-morandi)] hover:text-[var(--color-morandi)]'}">
+            ${page}
+        </button>`;
+
+    if (windowStart > 1) {
+        pageButtons.push(buildPageButton(1));
+        if (windowStart > 2) {
+            pageButtons.push('<span class="px-1 text-sm text-gray-300">…</span>');
+        }
+    }
+
+    for (let page = windowStart; page <= windowEnd; page += 1) {
+        pageButtons.push(buildPageButton(page));
+    }
+
+    if (windowEnd < totalPages) {
+        if (windowEnd < totalPages - 1) {
+            pageButtons.push('<span class="px-1 text-sm text-gray-300">…</span>');
+        }
+        pageButtons.push(buildPageButton(totalPages));
+    }
+
+    container.classList.remove('hidden');
+    container.innerHTML = `
+        <div class="text-xs text-gray-400">顯示第 ${startIndex}-${endIndex} 題，共 ${totalItems} 題</div>
+        <div class="flex items-center justify-end gap-1.5 flex-wrap w-full sm:w-auto">
+            <button onclick="goToListPage(${currentPage - 1})" ${currentPage === 1 ? 'disabled' : ''}
+                class="px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors ${currentPage === 1 ? 'opacity-40 cursor-not-allowed' : 'hover:border-[var(--color-morandi)] hover:text-[var(--color-morandi)]'}">
+                上一頁
+            </button>
+            ${pageButtons.join('')}
+            <button onclick="goToListPage(${currentPage + 1})" ${currentPage === totalPages ? 'disabled' : ''}
+                class="px-3 py-2 text-sm rounded-lg border border-gray-200 bg-white text-gray-600 transition-colors ${currentPage === totalPages ? 'opacity-40 cursor-not-allowed' : 'hover:border-[var(--color-morandi)] hover:text-[var(--color-morandi)]'}">
+                下一頁
+            </button>
+        </div>`;
+};
+
 
 // ===================================================================
 // 題目列表渲染
@@ -657,13 +981,15 @@ const syncLevelDropdown = (levelSelect, typeValue) => {
 const renderQuestionList = () => {
     const container = document.getElementById('questionListContainer');
     const emptyState = document.getElementById('emptyState');
-    const listCount = document.getElementById('listCount');
+    const totalPages = getTotalPages(filteredQuestions.length);
+    const visibleQuestions = getVisibleQuestions();
 
-    listCount.textContent = filteredQuestions.length;
+    updateListMeta(filteredQuestions.length, totalPages);
 
     if (filteredQuestions.length === 0) {
         container.innerHTML = '';
         emptyState.classList.remove('hidden');
+        renderPagination(0, totalPages);
         const emptyTexts = {
             'compose': '目前沒有命題作業，點擊右上角「新增試題」開始命題。',
             'revision': '目前沒有待修題的試題，您辛苦了！',
@@ -676,24 +1002,13 @@ const renderQuestionList = () => {
     emptyState.classList.add('hidden');
 
     let html = '';
-    filteredQuestions.forEach(q => {
+    visibleQuestions.forEach(q => {
         const st = statusMap[q.status] || {};
         const isRevision = currentTab === 'revision';
-        const isHistory = currentTab === 'history';
         const isEditable = q.status.endsWith('_editing');
-        const isLocked = q.status.endsWith('_reviewing');
+        const { stemPreview, optionPreview } = getQuestionPreviewMeta(q);
+        const stemText = truncate(stemPreview, 80);
 
-        // 題幹預覽文字 (去除 HTML 標籤，取前 80 字)
-        const plainStem = stripHtml(q.stem || q.passage || '(尚未輸入題幹)');
-        const stemPreview = plainStem.length > 80 ? plainStem.substring(0, 80) + '...' : plainStem;
-
-        // 選項預覽 (最多顯示 4 個選項)
-        const optionsArr = q.subQuestions ? q.subQuestions.map((sq, i) => `第${i + 1}題`) : (q.options || []);
-        const optionPreview = q.subQuestions
-            ? `<span class="text-gray-400 text-xs">含 ${q.subQuestions.length} 道子題</span>`
-            : optionsArr.map(o => `<span class="inline-block mr-2">(${o.label}) ${truncate(o.text, 8)}</span>`).join('');
-
-        // 修題卡片的審查意見區塊
         let revisionBlock = '';
         if (isRevision && q.reviewComment) {
             const stageName = reviewStageLabel[q.reviewStage] || '審查';
@@ -708,7 +1023,6 @@ const renderQuestionList = () => {
                 </div>`;
         }
 
-        // 動作按鈕
         let actionBtns = '';
         if (currentTab === 'compose') {
             if (q.status === 'draft') {
@@ -729,8 +1043,7 @@ const renderQuestionList = () => {
                     <button onclick="openFormModal('revision', '${q.id}')" class="text-xs px-3 py-1.5 bg-[var(--color-terracotta)] text-white rounded-md hover:bg-[#c87a5e] transition-colors cursor-pointer font-bold">進入修題</button>
                     <button onclick="openFormModal('view', '${q.id}')" class="text-xs px-3 py-1.5 border border-gray-300 rounded-md hover:bg-gray-50 text-gray-600 transition-colors cursor-pointer font-medium">檢視</button>`;
             } else {
-                actionBtns = `
-                    <span class="text-xs text-blue-500 font-medium"><i class="fa-solid fa-lock mr-1"></i>審查中，暫時無法操作</span>`;
+                actionBtns = '<span class="text-xs text-blue-500 font-medium"><i class="fa-solid fa-lock mr-1"></i>審查中，暫時無法操作</span>';
             }
         } else {
             actionBtns = `
@@ -740,7 +1053,6 @@ const renderQuestionList = () => {
         html += `
             <div class="q-card ${isRevision && isEditable ? 'q-card-revision' : ''} bg-white p-4 sm:p-5 hover:bg-gray-50/50 transition-colors">
                 <div class="flex flex-col sm:flex-row sm:items-start gap-3">
-                    <!-- 左側：題號 + 類型 + 等級 -->
                     <div class="flex-shrink-0 sm:w-40">
                         <div class="font-mono text-sm font-bold text-[var(--color-morandi)]">${q.id}</div>
                         <div class="flex flex-wrap items-center gap-1.5 mt-1">
@@ -748,15 +1060,11 @@ const renderQuestionList = () => {
                             <span class="text-xs text-gray-400">${q.level} / ${diffMap[q.difficulty] || ''}</span>
                         </div>
                     </div>
-
-                    <!-- 中間：題幹預覽 + 選項 -->
                     <div class="flex-grow min-w-0">
-                        <p class="text-sm text-gray-700 leading-relaxed mb-1 line-clamp-2">${stemPreview}</p>
+                        <p class="text-sm text-gray-700 leading-relaxed mb-1 line-clamp-2">${stemText}</p>
                         <div class="text-xs text-gray-400 leading-relaxed">${optionPreview}</div>
                         ${revisionBlock}
                     </div>
-
-                    <!-- 右側：狀態 + 動作 -->
                     <div class="flex-shrink-0 flex flex-col items-end gap-2 sm:w-40">
                         <span class="text-xs px-2.5 py-1 rounded-full font-bold border ${st.color} ${st.border}">${st.label}</span>
                         <div class="text-[10px] text-gray-400">${q.updatedAt}</div>
@@ -767,6 +1075,7 @@ const renderQuestionList = () => {
     });
 
     container.innerHTML = html;
+    renderPagination(filteredQuestions.length, totalPages);
 };
 
 
@@ -798,6 +1107,13 @@ const initFormModal = () => {
 
     // 預覽按鈕
     document.getElementById('formPreviewBtn').addEventListener('click', showExamPreview);
+
+    // 題目屬性欄收合
+    document.getElementById('formSidebarToggleBtn').addEventListener('click', () => {
+        setFormSidebarCollapsed(!isFormSidebarCollapsed);
+    });
+    window.addEventListener('resize', () => setFormSidebarCollapsed(isFormSidebarCollapsed));
+    setFormSidebarCollapsed(isFormSidebarCollapsed);
 
     // 題型切換 → 連動等級下拉 + 重渲染編輯區
     document.getElementById('formType').addEventListener('change', (e) => {
@@ -833,6 +1149,8 @@ const openFormModal = (mode, questionId = null) => {
         panel.classList.remove('opacity-0');
         panel.classList.add('modal-animate-in');
     });
+
+    enableFormInputs();
 
     // 設定 Modal 標題與按鈕
     if (mode === 'create') {
@@ -893,6 +1211,7 @@ const openFormModal = (mode, questionId = null) => {
     document.getElementById('formType').value = typeValue;
     syncLevelDropdown(document.getElementById('formLevel'), typeValue);
     renderFormEditorContent(typeValue);
+    setFormSidebarCollapsed(isFormSidebarCollapsed);
 
     // 若為檢視模式，禁用所有輸入
     if (mode === 'view') {
@@ -925,133 +1244,169 @@ const closeFormModal = () => {
 /** 填充左側屬性表單 */
 const populateFormSidebar = () => {
     const q = currentEditingQuestion;
-    if (q) {
-        document.getElementById('formType').value = q.type;
-        document.getElementById('formLevel').value = q.level || '';
-        document.getElementById('formDifficulty').value = q.difficulty || '';
-        // 設定正確答案 radio
-        const radios = document.querySelectorAll('input[name="formAnswer"]');
-        radios.forEach(r => { r.checked = r.value === q.answer; });
-    } else {
-        document.getElementById('formType').value = 'single';
-        document.getElementById('formLevel').value = '';
-        document.getElementById('formDifficulty').value = '';
-        document.querySelectorAll('input[name="formAnswer"]').forEach(r => { r.checked = false; });
-    }
+    document.getElementById('formType').value = q?.type || 'single';
+    document.getElementById('formLevel').value = q?.level || '';
+    document.getElementById('formDifficulty').value = q?.difficulty || '';
 };
 
+const getFormSidebarExpandedWidth = () => (window.matchMedia('(min-width: 1024px)').matches ? 288 : 240);
+
+const setFormSidebarCollapsed = (collapsed) => {
+    const sidebar = document.getElementById('formSidebar');
+    const sidebarBody = document.getElementById('formSidebarBody');
+    const sidebarFooter = document.getElementById('formSidebarFooter');
+    const toggleBtn = document.getElementById('formSidebarToggleBtn');
+    const toggleLabel = document.getElementById('formSidebarToggleLabel');
+    const toggleIcon = document.getElementById('formSidebarToggleIcon');
+    if (!sidebar || !sidebarBody || !sidebarFooter || !toggleBtn || !toggleLabel || !toggleIcon) return;
+
+    const expandedWidth = getFormSidebarExpandedWidth();
+    const toggleOpenLeft = Math.max(expandedWidth - 1, 0);
+
+    isFormSidebarCollapsed = collapsed;
+    sidebar.style.width = collapsed ? '0px' : `${expandedWidth}px`;
+    sidebar.style.minWidth = collapsed ? '0px' : `${expandedWidth}px`;
+    sidebar.style.flexBasis = collapsed ? '0px' : `${expandedWidth}px`;
+    sidebar.style.borderRightWidth = collapsed ? '0px' : '1px';
+    sidebar.style.transform = collapsed ? 'translateX(-22px)' : 'translateX(0)';
+    sidebar.style.boxShadow = collapsed ? 'none' : 'inset -1px 0 0 rgba(226, 232, 240, 0.9)';
+
+    sidebarBody.style.opacity = collapsed ? '0' : '1';
+    sidebarBody.style.transform = collapsed ? 'translateX(-32px)' : 'translateX(0)';
+    sidebarBody.style.pointerEvents = collapsed ? 'none' : 'auto';
+
+    sidebarFooter.style.opacity = collapsed ? '0' : '1';
+    sidebarFooter.style.transform = collapsed ? 'translateX(-32px)' : 'translateX(0)';
+    sidebarFooter.style.pointerEvents = collapsed ? 'none' : 'auto';
+    toggleBtn.style.left = collapsed ? '0px' : `${toggleOpenLeft}px`;
+    toggleBtn.style.boxShadow = collapsed
+        ? '0 16px 30px rgba(15, 23, 42, 0.14)'
+        : '0 12px 24px rgba(15, 23, 42, 0.08)';
+    toggleBtn.style.backgroundColor = collapsed ? 'rgba(255, 255, 255, 0.98)' : 'rgba(255, 255, 255, 0.94)';
+    toggleLabel.textContent = collapsed ? '展開題目屬性' : '收合題目屬性';
+    toggleBtn.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+    toggleBtn.setAttribute('aria-label', toggleLabel.textContent);
+    toggleBtn.setAttribute('title', toggleLabel.textContent);
+    toggleIcon.className = collapsed ? 'fa-solid fa-chevron-right text-sm' : 'fa-solid fa-chevron-left text-sm';
+};
 /** 依題型渲染右側編輯區內容 */
 const renderFormEditorContent = (type) => {
     const container = document.getElementById('formEditorArea');
     const q = currentEditingQuestion;
-    const isGroup = ['readGroup', 'shortGroup', 'listenGroup'].includes(type);
-    const isListen = ['listen', 'listenGroup'].includes(type);
-    const isLong = type === 'longText';
-
-    // 控制左側答案區塊顯示
+    const config = getTypeConfig(type);
     const answerSection = document.getElementById('formAnswerSection');
-    answerSection.style.display = isGroup ? 'none' : 'block';
+    answerSection.style.display = 'none';
 
     let html = '<div class="p-6 lg:p-8 space-y-6 max-w-4xl mx-auto">';
 
-    // 聽力題型：音檔上傳區
-    if (isListen) {
+    if (config.hasAudio) {
         html += `
             <div>
                 <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fa-solid fa-headphones mr-1 text-[var(--color-morandi)]"></i> 聽力音檔</label>
                 <div class="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center bg-gray-50 hover:border-[var(--color-morandi)] transition-colors cursor-pointer">
                     <i class="fa-solid fa-cloud-arrow-up text-3xl text-gray-300 mb-2"></i>
                     <p class="text-sm text-gray-500">點擊或拖曳上傳音檔 (MP3/WAV)</p>
-                    ${q && q.audioUrl ? `<p class="text-xs text-[var(--color-sage)] mt-2"><i class="fa-solid fa-check-circle mr-1"></i> 已上傳: ${q.audioUrl}</p>` : ''}
+                    ${q?.audioUrl ? `<p class="text-xs text-[var(--color-sage)] mt-2"><i class="fa-solid fa-check-circle mr-1"></i> 已上傳: ${q.audioUrl}</p>` : '<p class="text-xs text-gray-400 mt-2">尚未上傳音檔</p>'}
                 </div>
             </div>`;
     }
 
-    // 長文 / 閱讀題組 / 短文題組 / 聽力題組：引文/文章區
-    if (isLong || isGroup) {
-        const passageLabel = isListen ? '聽力腳本' : (type === 'readGroup' ? '閱讀文章' : (type === 'shortGroup' ? '短文內容' : '引文 / 長文'));
+    if (config.hasPassage) {
         const passageContent = q?.passage || '';
         html += `
             <div>
-                <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fa-solid fa-book mr-1 text-[var(--color-morandi)]"></i> ${passageLabel}</label>
-                <div class="editable-field bg-white text-sm text-gray-700 leading-relaxed" data-field="passage" onclick="activateQuillField(this, 'passage', '${passageLabel}')">
-                    ${passageContent || '<span class="text-gray-400 italic">點擊此處開始輸入${passageLabel}...</span>'}
+                <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fa-solid fa-book mr-1 text-[var(--color-morandi)]"></i> ${config.passageLabel}</label>
+                <div class="editable-field bg-white text-sm text-gray-700 leading-relaxed" data-field="passage" onclick="activateQuillField(this, 'passage', '${config.passageLabel}')">
+                    ${passageContent || `<span class="text-gray-400 italic">點擊此處開始輸入${config.passageLabel}...</span>`}
                 </div>
             </div>`;
     }
 
-    // 題幹區 (單題型 / 長文題型)
-    if (!isGroup) {
+    if (config.hasStem) {
         const stemContent = q?.stem || '';
+        const longTextHint = type === 'longText'
+            ? `
+            <div class="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800 leading-relaxed">
+                <div class="font-bold mb-1"><i class="fa-solid fa-image mr-1"></i> 作文題可搭配附圖</div>
+                <p>點擊題幹後，使用底部編輯器工具列的圖片按鈕即可上傳圖片。附圖會跟著題幹一起儲存，預覽時也會一併顯示。</p>
+            </div>`
+            : '';
         html += `
-            <div>
-                <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fa-solid fa-pen mr-1 text-[var(--color-morandi)]"></i> 題幹</label>
-                <div class="editable-field bg-white text-sm text-gray-700 leading-relaxed" data-field="stem" onclick="activateQuillField(this, 'stem', '題幹')">
-                    ${stemContent || '<span class="text-gray-400 italic">點擊此處開始編輯題幹...</span>'}
+            <div class="space-y-3">
+                <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fa-solid fa-pen mr-1 text-[var(--color-morandi)]"></i> ${config.stemLabel}</label>
+                ${longTextHint}
+                <div class="editable-field bg-white text-sm text-gray-700 leading-relaxed" data-field="stem" onclick="activateQuillField(this, 'stem', '${config.stemLabel}')">
+                    ${stemContent || `<span class="text-gray-400 italic">點擊此處開始編輯${config.stemLabel}...</span>`}
                 </div>
             </div>`;
+    }
 
-        // 選項區 (A/B/C/D)
+    if (config.hasOptions) {
         html += `
             <div>
-                <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fa-solid fa-list-ol mr-1 text-[var(--color-morandi)]"></i> 選項</label>
+                <div class="flex items-center justify-between mb-2">
+                    <label class="block text-sm font-bold text-gray-700"><i class="fa-solid fa-list-ol mr-1 text-[var(--color-morandi)]"></i> 選項與答案</label>
+                    <span class="text-xs text-gray-400">請勾選正確答案，可點選內容插入圖片</span>
+                </div>
                 <div class="space-y-3" id="formOptionsContainer">`;
 
-        const labels = ['A', 'B', 'C', 'D'];
-        labels.forEach((label, i) => {
+        optionLabels.forEach((label, i) => {
             const optText = q?.options?.[i]?.text || '';
             const isCorrect = q?.answer === label;
             html += `
-                    <div class="flex items-center gap-3">
-                        <span class="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0 ${isCorrect ? 'bg-[var(--color-sage)] text-white' : 'bg-gray-100 text-gray-500'}">${label}</span>
-                        <input type="text" class="flex-grow px-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] focus:border-[var(--color-morandi)] bg-white"
-                            data-option-index="${i}" data-option-label="${label}"
-                            value="${escapeHtml(optText)}" placeholder="輸入選項 (${label}) 的內容...">
+                    <div class="flex items-start gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3">
+                        <label class="flex items-center gap-2 text-sm font-bold text-gray-600 cursor-pointer pt-2">
+                            <input type="radio" name="formAnswer" value="${label}" ${isCorrect ? 'checked' : ''} class="text-[var(--color-sage)] focus:ring-[var(--color-sage)]">
+                            <span class="w-7 h-7 rounded-full flex items-center justify-center ${isCorrect ? 'bg-[var(--color-sage)] text-white' : 'bg-gray-100 text-gray-500'}">${label}</span>
+                        </label>
+                        <div class="editable-field bg-white text-sm text-gray-700 leading-relaxed flex-grow min-h-[76px]" data-option-index="${i}" data-option-label="${label}" onclick="activateQuillField(this, 'option-${i}', '選項 (${label})')">
+                            ${optText || `<span class="text-gray-400 italic">點擊此處開始編輯選項 (${label})，可插入圖片...</span>`}
+                        </div>
                     </div>`;
         });
 
-        html += `</div></div>`;
+        html += '</div></div>';
     }
 
-    // 子題區 (題組型)
-    if (isGroup) {
-        const subQs = q?.subQuestions || [{ stem: '', options: [{ label: 'A', text: '' }, { label: 'B', text: '' }, { label: 'C', text: '' }, { label: 'D', text: '' }], answer: '' }];
+    if (config.hasSubQuestions) {
+        const subQuestions = q?.subQuestions?.length ? q.subQuestions : [getDefaultSubQuestion(config.subQuestionMode)];
+        const subQuestionLabel = config.subQuestionMode === 'freeResponse' ? '自由作答子題' : '子題列表';
         html += `
             <div>
                 <div class="flex items-center justify-between mb-3">
-                    <label class="text-sm font-bold text-gray-700"><i class="fa-solid fa-layer-group mr-1 text-[var(--color-morandi)]"></i> 子題列表</label>
+                    <label class="text-sm font-bold text-gray-700"><i class="fa-solid fa-layer-group mr-1 text-[var(--color-morandi)]"></i> ${subQuestionLabel}</label>
                     <button onclick="addSubQuestion()" class="text-xs px-3 py-1.5 bg-[var(--color-morandi)] text-white rounded-md hover:bg-[#5b7a95] transition-colors cursor-pointer font-medium">
                         <i class="fa-solid fa-plus mr-1"></i> 新增子題
                     </button>
                 </div>
                 <div class="space-y-4" id="subQuestionsContainer">`;
 
-        subQs.forEach((sq, idx) => {
-            html += renderSubQuestionBlock(sq, idx);
+        subQuestions.forEach((subQuestion, index) => {
+            html += renderSubQuestionBlock(subQuestion, index, config.subQuestionMode);
         });
 
-        html += `</div></div>`;
+        html += '</div></div>';
     }
 
-    // 解析區
-    const analysisContent = q?.analysis || '';
-    html += `
-        <div>
-            <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fa-regular fa-lightbulb mr-1 text-yellow-500"></i> 解析</label>
-            <div class="editable-field bg-white text-sm text-gray-700 leading-relaxed" data-field="analysis" onclick="activateQuillField(this, 'analysis', '解析')">
-                ${analysisContent || '<span class="text-gray-400 italic">點擊此處編輯解析說明...</span>'}
-            </div>
-        </div>`;
+    if (type !== 'shortGroup') {
+        const analysisContent = q?.analysis || '';
+        html += `
+            <div>
+                <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fa-regular fa-lightbulb mr-1 text-yellow-500"></i> 解析</label>
+                <div class="editable-field bg-white text-sm text-gray-700 leading-relaxed" data-field="analysis" onclick="activateQuillField(this, 'analysis', '解析')">
+                    ${analysisContent || '<span class="text-gray-400 italic">點擊此處編輯解析說明...</span>'}
+                </div>
+            </div>`;
+    }
 
-    // 歷史軌跡 (檢視/修題模式才顯示)
     if (q && q.history && q.history.length > 0 && (formMode === 'view' || formMode === 'revision')) {
         html += `
             <div class="border-t border-gray-200 pt-6">
                 <h3 class="text-sm font-bold text-gray-700 mb-4"><i class="fa-solid fa-clock-rotate-left mr-1 text-[var(--color-sage)]"></i> 歷程軌跡</h3>
                 <div class="relative border-l-2 border-gray-200 ml-3 pl-5 space-y-4">`;
 
-        q.history.forEach((h, i) => {
-            const isLatest = i === q.history.length - 1;
+        [...q.history].reverse().forEach((h, i) => {
+            const isLatest = i === 0;
             html += `
                     <div class="relative">
                         <div class="absolute -left-[1.625rem] top-1 w-3 h-3 rounded-full border-2 ${isLatest ? 'bg-[var(--color-morandi)] border-[var(--color-morandi)]' : 'bg-white border-gray-300'}"></div>
@@ -1061,7 +1416,7 @@ const renderFormEditorContent = (type) => {
                     </div>`;
         });
 
-        html += `</div></div>`;
+        html += '</div></div>';
     }
 
     html += '</div>';
@@ -1069,56 +1424,97 @@ const renderFormEditorContent = (type) => {
 };
 
 /** 渲染子題區塊 */
-const renderSubQuestionBlock = (sq, idx) => {
-    const labels = ['A', 'B', 'C', 'D'];
+const renderSubQuestionBlock = (sq, idx, mode = 'choice') => {
     let html = `
         <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm" data-sub-index="${idx}">
             <div class="flex items-center justify-between mb-3">
-                <span class="text-sm font-bold text-[var(--color-morandi)]">第 ${idx + 1} 題</span>
-                <button onclick="removeSubQuestion(${idx})" class="text-xs text-red-400 hover:text-red-600 transition-colors cursor-pointer">
+                <span class="text-sm font-bold text-[var(--color-morandi)]" data-sub-title>第 ${idx + 1} 題</span>
+                <button data-sub-remove onclick="removeSubQuestion(${idx})" class="text-xs text-red-400 hover:text-red-600 transition-colors cursor-pointer">
                     <i class="fa-solid fa-trash-can mr-0.5"></i> 刪除
                 </button>
             </div>
             <div class="mb-3">
                 <input type="text" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)]"
                     data-sub-stem="${idx}" value="${escapeHtml(sq.stem || '')}" placeholder="輸入子題題幹...">
-            </div>
-            <div class="grid grid-cols-2 gap-2 mb-3">`;
+            </div>`;
 
-    labels.forEach((label, i) => {
-        const optText = sq.options?.[i]?.text || '';
+    if (mode === 'freeResponse') {
         html += `
-                <div class="flex items-center gap-2">
-                    <span class="text-xs font-bold text-gray-400">(${label})</span>
-                    <input type="text" class="flex-grow px-2 py-1.5 text-xs border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)]"
-                        data-sub-option="${idx}-${i}" value="${escapeHtml(optText)}" placeholder="選項${label}">
+            <div class="mb-3 px-3 py-2 bg-gray-50 border border-dashed border-gray-200 rounded-lg text-sm text-gray-500 flex items-center gap-2 w-max">
+                <i class="fa-solid fa-pen-to-square"></i> 自由作答
+            </div>
+            <textarea class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] resize-none"
+                rows="3" data-sub-analysis="${idx}" placeholder="輸入本子題解析...">${escapeHtml(sq.analysis || '')}</textarea>`;
+    } else {
+        html += `
+            <div class="mb-3">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-bold text-gray-500">選項與答案</span>
+                    <span class="text-xs text-gray-400">請勾選正確答案，可點選內容插入圖片</span>
+                </div>
+                <div class="grid grid-cols-2 gap-3">`;
+        optionLabels.forEach((label, optionIndex) => {
+            const optText = sq.options?.[optionIndex]?.text || '';
+            const isCorrect = sq.answer === label;
+            html += `
+                <div class="flex items-start gap-3 rounded-xl border border-gray-200 bg-white px-4 py-3 min-w-0">
+                    <label class="flex items-center gap-2 text-sm font-bold text-gray-600 cursor-pointer flex-shrink-0 pt-2">
+                        <input type="radio" name="subAnswer-${idx}" value="${label}" ${isCorrect ? 'checked' : ''} class="text-[var(--color-sage)] focus:ring-[var(--color-sage)]">
+                        <span class="w-7 h-7 rounded-full flex items-center justify-center ${isCorrect ? 'bg-[var(--color-sage)] text-white' : 'bg-gray-100 text-gray-500'}">${label}</span>
+                    </label>
+                    <div class="editable-field bg-white text-sm text-gray-700 leading-relaxed flex-grow min-h-[76px] min-w-0" data-sub-option="${idx}-${optionIndex}" data-option-label="${label}" onclick="activateQuillField(this, 'subOption-${idx}-${optionIndex}', '第 ${idx + 1} 題選項 (${label})')">
+                        ${optText || `<span class="text-gray-400 italic">點擊此處開始編輯選項 (${label})，可插入圖片...</span>`}
+                    </div>
                 </div>`;
-    });
+        });
 
-    html += `
-            </div>
-            <div class="flex items-center gap-2">
-                <span class="text-xs text-gray-500">正確答案：</span>
-                <select class="text-xs px-2 py-1 border border-gray-300 rounded focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] bg-white cursor-pointer" data-sub-answer="${idx}">
-                    <option value="">請選擇</option>
-                    ${labels.map(l => `<option value="${l}" ${sq.answer === l ? 'selected' : ''}>${l}</option>`).join('')}
-                </select>
-            </div>
-        </div>`;
+        html += `
+                </div>
+            </div>`;
+    }
 
+    html += '</div>';
     return html;
+};
+
+const syncSubQuestionIndices = () => {
+    const container = document.getElementById('subQuestionsContainer');
+    if (!container) return;
+
+    Array.from(container.children).forEach((el, idx) => {
+        el.setAttribute('data-sub-index', idx);
+        const titleEl = el.querySelector('[data-sub-title]');
+        if (titleEl) titleEl.textContent = `第 ${idx + 1} 題`;
+        el.querySelector('[data-sub-remove]')?.setAttribute('onclick', `removeSubQuestion(${idx})`);
+        el.querySelector('[data-sub-stem]')?.setAttribute('data-sub-stem', idx);
+
+        const analysisField = el.querySelector('[data-sub-analysis]');
+        if (analysisField) {
+            analysisField.setAttribute('data-sub-analysis', idx);
+            return;
+        }
+
+        el.querySelectorAll('[data-sub-option]').forEach((input, optionIndex) => {
+            const label = input.getAttribute('data-option-label') || optionLabels[optionIndex];
+            input.setAttribute('data-sub-option', `${idx}-${optionIndex}`);
+            input.setAttribute('onclick', `activateQuillField(this, 'subOption-${idx}-${optionIndex}', '第 ${idx + 1} 題選項 (${label})')`);
+        });
+
+        el.querySelectorAll('input[type="radio"]').forEach((radio) => {
+            radio.name = `subAnswer-${idx}`;
+        });
+    });
 };
 
 /** 新增子題 */
 const addSubQuestion = () => {
     const container = document.getElementById('subQuestionsContainer');
+    const type = document.getElementById('formType').value;
+    const mode = getTypeConfig(type).subQuestionMode;
     if (!container) return;
     const currentCount = container.children.length;
-    const newSq = {
-        stem: '', answer: '',
-        options: [{ label: 'A', text: '' }, { label: 'B', text: '' }, { label: 'C', text: '' }, { label: 'D', text: '' }]
-    };
-    container.insertAdjacentHTML('beforeend', renderSubQuestionBlock(newSq, currentCount));
+    container.insertAdjacentHTML('beforeend', renderSubQuestionBlock(getDefaultSubQuestion(mode), currentCount, mode));
+    syncSubQuestionIndices();
 };
 
 /** 刪除子題 */
@@ -1129,9 +1525,20 @@ const removeSubQuestion = (idx) => {
         return;
     }
     container.children[idx]?.remove();
-    // 重新編號
-    Array.from(container.children).forEach((el, i) => {
-        el.querySelector('.text-sm.font-bold').textContent = `第 ${i + 1} 題`;
+    syncSubQuestionIndices();
+};
+
+const enableFormInputs = () => {
+    const formArea = document.getElementById('formPanel');
+    if (!formArea) return;
+
+    formArea.querySelectorAll('input, select, textarea').forEach(el => {
+        el.disabled = false;
+        el.classList.remove('opacity-60', 'cursor-not-allowed');
+    });
+    formArea.querySelectorAll('.editable-field').forEach(el => {
+        el.style.pointerEvents = 'auto';
+        el.classList.remove('opacity-60');
     });
 };
 
@@ -1163,53 +1570,60 @@ const collectFormData = () => {
     const type = document.getElementById('formType').value;
     const level = document.getElementById('formLevel').value;
     const difficulty = document.getElementById('formDifficulty').value;
-    const isGroup = ['readGroup', 'shortGroup', 'listenGroup'].includes(type);
-
+    const config = getTypeConfig(type);
     const data = { type, level, difficulty };
 
-    // 收集 editable field 內容
     document.querySelectorAll('#formEditorArea .editable-field').forEach(el => {
         const field = el.getAttribute('data-field');
         if (field) data[field] = el.innerHTML;
     });
 
-    // 收集選項 (非題組型)
-    if (!isGroup) {
-        const options = [];
-        document.querySelectorAll('#formOptionsContainer input[data-option-index]').forEach(input => {
-            options.push({
+    if (!config.hasPassage) data.passage = '';
+    if (!config.hasStem) data.stem = '';
+
+    if (config.hasOptions) {
+        data.options = [];
+        document.querySelectorAll('#formOptionsContainer .editable-field[data-option-index]').forEach(input => {
+            data.options.push({
                 label: input.getAttribute('data-option-label'),
-                text: input.value
+                text: input.innerHTML
             });
         });
-        data.options = options;
-
-        // 收集正確答案
         const checkedRadio = document.querySelector('input[name="formAnswer"]:checked');
         data.answer = checkedRadio ? checkedRadio.value : '';
+    } else {
+        data.options = [];
+        data.answer = '';
     }
 
-    // 收集子題 (題組型)
-    if (isGroup) {
-        const subQuestions = [];
+    if (config.hasSubQuestions) {
+        data.subQuestions = [];
         document.querySelectorAll('#subQuestionsContainer > div').forEach((block, idx) => {
-            const stemInput = block.querySelector(`input[data-sub-stem="${idx}"]`);
-            const answerSelect = block.querySelector(`select[data-sub-answer="${idx}"]`);
-            const opts = [];
-            ['A', 'B', 'C', 'D'].forEach((label, i) => {
-                const optInput = block.querySelector(`input[data-sub-option="${idx}-${i}"]`);
-                opts.push({ label, text: optInput?.value || '' });
-            });
-            subQuestions.push({
-                stem: stemInput?.value || '',
-                options: opts,
-                answer: answerSelect?.value || ''
-            });
+            const subQuestion = {
+                stem: block.querySelector(`[data-sub-stem="${idx}"]`)?.value || ''
+            };
+
+            if (config.subQuestionMode === 'freeResponse') {
+                subQuestion.analysis = block.querySelector(`[data-sub-analysis="${idx}"]`)?.value || '';
+            } else {
+                subQuestion.options = optionLabels.map((label, optionIndex) => ({
+                    label,
+                    text: block.querySelector(`[data-sub-option="${idx}-${optionIndex}"]`)?.innerHTML || ''
+                }));
+                const checkedRadio = block.querySelector(`input[name="subAnswer-${idx}"]:checked`);
+                subQuestion.answer = checkedRadio ? checkedRadio.value : '';
+            }
+
+            data.subQuestions.push(subQuestion);
         });
-        data.subQuestions = subQuestions;
+    } else {
+        data.subQuestions = [];
     }
 
-    // 修題回覆
+    if (type === 'shortGroup') {
+        data.analysis = '';
+    }
+
     if (formMode === 'revision') {
         data.revisionReply = document.getElementById('revisionReplyInput')?.value || '';
     }
@@ -1425,8 +1839,9 @@ const initQuillEditor = () => {
         });
     });
 
-    // 收起按鈕
+    // 收起按鈕 / 點擊外側收合
     document.getElementById('quillCloseBtn').addEventListener('click', closeQuillEditor);
+    document.getElementById('quillBackdrop').addEventListener('click', closeQuillEditor);
 
     // 監聽 Quill 內容變化，即時同步回欄位
     quillInstance.on('text-change', () => {
@@ -1463,8 +1878,13 @@ const activateQuillField = (element, fieldKey, label) => {
 
     // 滑出編輯器
     const panel = document.getElementById('quillPanel');
-    panel.classList.remove('translate-y-full');
-    panel.classList.add('translate-y-0');
+    const sheet = document.getElementById('quillSheet');
+    const backdrop = document.getElementById('quillBackdrop');
+    clearTimeout(quillCloseTimer);
+    panel.classList.remove('pointer-events-none');
+    sheet.classList.remove('translate-y-full');
+    sheet.classList.add('translate-y-0');
+    backdrop.classList.remove('opacity-0');
 
     // 聚焦 Quill
     quillInstance.focus();
@@ -1473,14 +1893,24 @@ const activateQuillField = (element, fieldKey, label) => {
 /** 關閉 Quill 編輯器 */
 const closeQuillEditor = () => {
     const panel = document.getElementById('quillPanel');
-    panel.classList.remove('translate-y-0');
-    panel.classList.add('translate-y-full');
+    const sheet = document.getElementById('quillSheet');
+    const backdrop = document.getElementById('quillBackdrop');
+    sheet.classList.remove('translate-y-0');
+    sheet.classList.add('translate-y-full');
+    backdrop.classList.add('opacity-0');
 
     if (activeEditableField) {
         activeEditableField.classList.remove('editing');
     }
     activeEditableField = null;
     activeFieldKey = null;
+
+    clearTimeout(quillCloseTimer);
+    quillCloseTimer = setTimeout(() => {
+        if (sheet.classList.contains('translate-y-full')) {
+            panel.classList.add('pointer-events-none');
+        }
+    }, 300);
 };
 
 
@@ -1492,10 +1922,26 @@ const initPreviewModal = () => {
     document.getElementById('previewBackdrop').addEventListener('click', closePreviewModal);
 };
 
+const renderPreviewChoiceOptions = (options = [], answer = '') => {
+    const normalizedOptions = optionLabels.map((label) => {
+        const matched = options.find((option) => option.label === label);
+        return matched || { label, text: '' };
+    });
+
+    return `
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm mb-3">
+            ${normalizedOptions.map((option) => `
+                <div class="flex items-start gap-3 rounded-xl border px-4 py-3 min-w-0 ${option.label === answer ? 'border-[var(--color-sage)] bg-[var(--color-sage)]/10' : 'border-gray-200 bg-white'}">
+                    <span class="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${option.label === answer ? 'bg-[var(--color-sage)] text-white' : 'bg-gray-100 text-gray-500'}">${option.label}</span>
+                    <div class="min-w-0 flex-grow leading-relaxed">${option.text || '<p class="text-gray-400 italic">尚未輸入選項內容</p>'}</div>
+                </div>`).join('')}
+        </div>`;
+};
+
 const showExamPreview = () => {
     const data = collectFormData();
     const content = document.getElementById('previewContent');
-    const isGroup = ['readGroup', 'shortGroup', 'listenGroup'].includes(data.type);
+    const config = getTypeConfig(data.type);
 
     let html = `
         <div class="font-serif max-w-2xl mx-auto">
@@ -1504,27 +1950,70 @@ const showExamPreview = () => {
                 <p class="text-sm text-gray-500">${qTypeMap[data.type]} ・ ${data.level} ・ 難度：${diffMap[data.difficulty] || '--'}</p>
             </div>`;
 
-    if (data.passage) {
-        html += `<div class="mb-6 p-4 bg-gray-50 border border-gray-200 rounded leading-relaxed text-sm">${data.passage}</div>`;
+    if (config.hasAudio) {
+        html += `
+            <div class="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-100 text-sm text-blue-800">
+                <div class="font-bold mb-2"><i class="fa-solid fa-headphones mr-1"></i> 聽力音檔</div>
+                <div>${data.audioUrl || 'DEMO 顯示區：正式版將於此載入音檔。'}</div>
+            </div>`;
     }
 
-    if (isGroup && data.subQuestions) {
-        data.subQuestions.forEach((sq, i) => {
+    if (config.hasPassage) {
+        html += `
+            <div class="mb-6 p-5 bg-gray-50 border border-gray-200 rounded-xl text-sm leading-relaxed">
+                <div class="prose prose-sm max-w-none">${data.passage || '<p class="text-gray-400">內容尚未填寫</p>'}</div>
+            </div>`;
+    }
+
+    if (data.type === 'longText') {
+        html += `
+            <div class="mb-6 space-y-4">
+                <div>
+                    <div class="text-xs font-bold tracking-wide text-gray-500 mb-2">作文題幹與附圖</div>
+                    <div class="p-5 bg-white border border-gray-200 rounded-xl shadow-sm leading-relaxed prose prose-sm max-w-none">${data.stem || '<p class="text-gray-400">作文題幹尚未填寫</p>'}</div>
+                </div>
+                <div class="p-4 border border-dashed border-gray-300 rounded-lg text-sm text-gray-500">請考生於答案卷自由作答。若題幹包含附圖，預覽會一併顯示。</div>
+            </div>`;
+    } else if (config.hasSubQuestions) {
+        (data.subQuestions || []).forEach((sq, i) => {
             html += `
-                <div class="mb-6">
-                    <p class="font-bold mb-2">${i + 1}. ${sq.stem || '(題幹尚未填寫)'}</p>
-                    <div class="ml-4 space-y-1 text-sm">
-                        ${sq.options?.map(o => `<p>(${o.label}) ${o.text || '____'}</p>`).join('') || ''}
-                    </div>
-                </div>`;
+                <div class="mb-6 border-t border-gray-200 pt-5">
+                    <p class="font-bold mb-2">${i + 1}. ${escapeHtml(sq.stem || '(題幹尚未填寫)')}</p>`;
+
+            if (config.subQuestionMode === 'freeResponse') {
+                html += `
+                    <div class="mb-3 p-3 border border-dashed border-gray-300 rounded-lg text-sm text-gray-500">本題為自由作答，請依題意作答。</div>
+                    <div class="p-3 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-gray-700 whitespace-pre-line"><span class="font-bold text-yellow-700">解析：</span>${escapeHtml(sq.analysis || '尚未填寫解析')}</div>`;
+            } else {
+                html += `
+                    ${renderPreviewChoiceOptions(sq.options || [], sq.answer)}
+                    <div class="text-xs text-gray-500">正確答案：${sq.answer || '未設定'}</div>`;
+            }
+
+            html += '</div>';
         });
+
+        if (data.analysis && data.type !== 'shortGroup') {
+            html += `
+                <div class="p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-gray-700">
+                    <div class="font-bold text-yellow-700 mb-2">題組解析</div>
+                    <div class="leading-relaxed prose prose-sm max-w-none">${data.analysis}</div>
+                </div>`;
+        }
     } else {
         html += `
             <div class="mb-6">
-                <p class="font-bold mb-3 leading-relaxed">${stripHtml(data.stem || '(題幹尚未填寫)')}</p>
-                <div class="ml-4 space-y-2 text-sm">
-                    ${data.options?.map(o => `<p>(${o.label}) ${o.text || '____'}</p>`).join('') || ''}
-                </div>
+                <div class="font-bold mb-3 leading-relaxed prose prose-sm max-w-none">${data.stem || '<p class="text-gray-400">題幹尚未填寫</p>'}</div>
+                ${renderPreviewChoiceOptions(data.options || [], data.answer)}
+                <div class="text-xs text-gray-500">正確答案：${data.answer || '未設定'}</div>
+            </div>`;
+    }
+
+    if (data.analysis && !config.hasSubQuestions) {
+        html += `
+            <div class="p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-gray-700">
+                <div class="font-bold text-yellow-700 mb-2">解析</div>
+                <div class="leading-relaxed prose prose-sm max-w-none">${data.analysis}</div>
             </div>`;
     }
 
@@ -1581,3 +2070,4 @@ window.submitQuestion = submitQuestion;
 window.activateQuillField = activateQuillField;
 window.addSubQuestion = addSubQuestion;
 window.removeSubQuestion = removeSubQuestion;
+window.goToListPage = goToListPage;

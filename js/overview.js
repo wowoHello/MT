@@ -35,445 +35,272 @@ const teacherMap = {
     'C2001': '李教授', 'C2002': '陳副教授', 'S3001': '林總召', 'S3002': '許編輯'
 };
 
+const qTypeConfig = {
+    single: { subQuestionMode: null, hasAudio: false, hasPassage: false },
+    select: { subQuestionMode: null, hasAudio: false, hasPassage: false },
+    longText: { subQuestionMode: null, hasAudio: false, hasPassage: false },
+    readGroup: { subQuestionMode: 'choice', hasAudio: false, hasPassage: true, passageLabel: '閱讀文章' },
+    shortGroup: { subQuestionMode: 'freeResponse', hasAudio: false, hasPassage: true, passageLabel: '短文內容' },
+    listen: { subQuestionMode: null, hasAudio: true, hasPassage: false },
+    listenGroup: { subQuestionMode: 'choice', hasAudio: true, hasPassage: true, passageLabel: '聽力腳本' }
+};
+
+const renderChoiceOptions = (options = [], answer = '') => `
+    <div class="space-y-2 mb-4">
+        ${options.map(option => `
+            <div class="flex gap-2 ${option.label === answer ? 'bg-green-50 border border-green-200 text-green-700 p-2 rounded items-center justify-between font-bold' : 'text-gray-600'}">
+                <div><span>(${option.label})</span> ${option.text}</div>
+                ${option.label === answer ? '<i class="fa-solid fa-circle-check"></i>' : ''}
+            </div>`).join('')}
+    </div>`;
+
+const renderSubQuestionDetail = (subQuestion, index, mode) => {
+    if (mode === 'freeResponse') {
+        return `
+            <div class="border-t border-gray-100 pt-6">
+                <div class="flex items-start gap-4">
+                    <div class="bg-blue-500 text-white px-3 py-1 rounded text-sm font-bold flex-shrink-0">第${index + 1}題</div>
+                    <div class="flex-grow">
+                        <p class="mb-4 text-gray-800 font-medium">${subQuestion.stem}</p>
+                        <div class="mb-4 px-3 py-2 bg-gray-50 border border-gray-200 border-dashed rounded text-gray-500 text-sm flex items-center gap-2 w-max">
+                            <i class="fa-solid fa-pen-to-square"></i> 論述題 (自由作答)
+                        </div>
+                        <div class="p-3 bg-yellow-50 rounded-lg border border-yellow-100 text-sm">
+                            <p class="text-yellow-700 font-bold inline-block mr-2"><i class="fa-regular fa-lightbulb"></i> 解析</p>
+                            <span class="text-gray-700">${subQuestion.analysis || '尚未填寫解析'}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
+    }
+
+    return `
+        <div class="border-t border-gray-100 pt-6">
+            <div class="flex items-start gap-4">
+                <div class="bg-blue-500 text-white px-3 py-1 rounded text-sm font-bold flex-shrink-0">第${index + 1}題</div>
+                <div class="flex-grow">
+                    <p class="mb-4 text-gray-800 font-medium">${subQuestion.stem}</p>
+                    ${renderChoiceOptions(subQuestion.options, subQuestion.answer)}
+                </div>
+            </div>
+        </div>`;
+};
+
+const renderOverviewQuestionContent = (question) => {
+    const config = qTypeConfig[question.type] || qTypeConfig.single;
+    let html = '';
+
+    if (config.hasAudio) {
+        html += `
+            <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100 flex items-center gap-4">
+                <div class="w-12 h-12 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 text-xl shadow-sm">
+                    <i class="fa-solid fa-volume-high"></i>
+                </div>
+                <div class="flex-grow">
+                    <div class="text-sm font-bold text-blue-800 mb-2">${question.audioUrl || 'DEMO 聽力音檔'}</div>
+                    <div class="text-xs text-blue-700">正式版將於此處載入實際音檔。</div>
+                </div>
+            </div>`;
+    }
+
+    if (config.hasPassage) {
+        html += `
+            <div class="mb-6">
+                <span class="inline-block px-2 py-1 ${question.type === 'listenGroup' ? 'bg-pink-50 border-pink-200 text-pink-600' : question.type === 'shortGroup' ? 'bg-green-50 border-green-200 text-green-600' : 'bg-orange-50 border-orange-200 text-orange-600'} border rounded text-xs font-bold mb-3">${qTypeMap[question.type]}</span>
+                <div class="bg-gray-50 border border-gray-200 rounded-lg p-5">
+                    <p class="text-gray-700 whitespace-pre-wrap leading-relaxed">${question.passage}</p>
+                </div>
+            </div>`;
+    }
+
+    if (question.type === 'longText') {
+        html += `
+            <div class="space-y-4">
+                <div class="rounded-2xl border border-amber-200 bg-amber-50 p-5">
+                    <div class="text-xs font-bold tracking-[0.2em] text-amber-700 mb-2">作文題幹</div>
+                    <p class="text-lg font-semibold text-gray-800 leading-relaxed">${question.stem}</p>
+                </div>
+                <div class="rounded-2xl border border-dashed border-gray-300 bg-white p-5 text-sm text-gray-500">本題為作文題，作答時不提供選項，考生需於答案卷自由書寫。</div>
+                <div class="p-4 bg-yellow-50 rounded-lg border border-yellow-100 text-sm text-gray-700">
+                    <p class="text-yellow-700 font-bold inline-block mr-2"><i class="fa-regular fa-lightbulb"></i> 解析</p>
+                    <span>${question.analysis}</span>
+                </div>
+            </div>`;
+        return html;
+    }
+
+    if (!config.hasPassage) {
+        html += `
+            <p class="font-medium text-gray-800 mb-4">${question.stem}</p>`;
+    }
+
+    if (config.subQuestionMode) {
+        html += `<div class="space-y-6">${question.subQuestions.map((subQuestion, index) => renderSubQuestionDetail(subQuestion, index, config.subQuestionMode)).join('')}</div>`;
+        if (question.analysis) {
+            html += `
+                <div class="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-100 text-sm text-gray-700">
+                    <p class="text-yellow-700 font-bold inline-block mr-2"><i class="fa-regular fa-lightbulb"></i> 題組解析</p>
+                    <span>${question.analysis}</span>
+                </div>`;
+        }
+        return html;
+    }
+
+    html += `${renderChoiceOptions(question.options, question.answer)}
+        <div class="p-3 bg-yellow-50 rounded-lg border border-yellow-100 text-sm text-gray-700">
+            <p class="text-yellow-700 font-bold inline-block mr-2"><i class="fa-regular fa-lightbulb"></i> 解析</p>
+            <span>${question.analysis}</span>
+        </div>`;
+
+    return html;
+};
+
 // 產生假資料庫 (針對當前 P2026-01 梯次)
 const mockQuestionsDb = [
-    // 1. 一般單選題 (single)
     {
         id: 'Q-2602-001', project_id: 'P2026-01', type: 'single', level: '中級', difficulty: 'medium', author_id: 'T1001',
         stage: 6, status: 'adopted', returnCount: 0,
-        content: '<p>下列何者是正確的選項？</p><ul class="mt-4 space-y-2 ml-2"><li>(A) 蘋果</li><li>(B) 香蕉</li><li>(C) 橘子</li><li>(D) 西瓜</li></ul><div class="mt-4 p-3 bg-yellow-50 rounded-lg border border-yellow-100 text-sm"><p class="text-yellow-700 font-bold mb-1"><i class="fa-regular fa-lightbulb mr-1"></i> 解析</p>蘋果含有豐富的維生素C。<strong>標準答案：</strong> (A)</div>',
+        stem: '下列何者最能表現「飲水思源」的意思？',
+        options: [
+            { label: 'A', text: '吃飯時要慢慢品嘗' },
+            { label: 'B', text: '獲得成果後不忘感念來源' },
+            { label: 'C', text: '做事前要先找水源' },
+            { label: 'D', text: '旅行時要準備飲水' }
+        ],
+        answer: 'B', analysis: '「飲水思源」比喻人在享受成果時，不忘感謝本源與幫助自己的人。',
         history: [
             { time: '2026-08-11 10:00', user: 'T1001', action: '命題完成', comment: '初稿建立完畢' },
-            { time: '2026-08-15 14:20', user: 'T1002', action: '互審意見', comment: '無明顯錯誤，誘答選項設計良好。' },
-            { time: '2026-08-20 09:15', user: 'C2001', action: '專審意見 (採用)', comment: '題目符合課綱，予以採用進入總審。' },
-            { time: '2026-08-25 11:30', user: 'S3001', action: '總召決策 (採用)', comment: '難易適中，本次測驗直接採用。' }
+            { time: '2026-08-15 14:20', user: 'T1002', action: '互審意見', comment: '誘答選項設計良好。' },
+            { time: '2026-08-20 09:15', user: 'C2001', action: '專審意見 (採用)', comment: '符合等級。' },
+            { time: '2026-08-25 11:30', user: 'S3001', action: '總召決策 (採用)', comment: '核准入庫。' }
         ]
     },
     {
-        id: 'Q-2602-002', project_id: 'P2026-01', type: 'single', level: '初級', difficulty: 'easy', author_id: 'T1002',
-        stage: 6, status: 'rejected', returnCount: 0,
-        content: '<p>此題已被總召廢棄，因為與歷屆試題重複。</p>',
-        history: [
-            { time: '2026-08-10 09:00', user: 'T1002', action: '命題完成', comment: '' },
-            { time: '2026-08-15 10:00', user: 'T1001', action: '互審意見', comment: '好像跟 113年歷屆考題有重複' },
-            { time: '2026-08-20 11:00', user: 'C2001', action: '專審意見 (採用)', comment: '先送總裁定' },
-            { time: '2026-08-25 14:00', user: 'S3001', action: '總召決策 (不採用)', comment: '經查重比對發現與 113 年度秋季考題雷同，直接不採用報廢。' }
-        ]
-    },
-    // 2. 精選單選題 (select)
-    {
-        id: 'Q-2602-003', project_id: 'P2026-01', type: 'select', level: '高級', difficulty: 'hard', author_id: 'T1004',
-        stage: 1, status: 'draft', returnCount: 0,
-        content: '<p class="text-gray-400 italic">草稿編輯中... (尚未完成命題)</p>',
-        history: []
-    },
-    {
-        id: 'Q-2602-004', project_id: 'P2026-01', type: 'select', level: '中高級', difficulty: 'medium', author_id: 'T1003',
+        id: 'Q-2602-002', project_id: 'P2026-01', type: 'select', level: '中高級', difficulty: 'hard', author_id: 'T1003',
         stage: 6, status: 'final_reviewing', returnCount: 0,
-        content: '<p>下列成語中，何者用字完全正確？</p><ul class="mt-4 space-y-2 ml-2"><li>(A) 走投無路</li><li>(B) 按步就班</li><li>(C) 破斧沉舟</li><li>(D) 鋌而走險</li></ul>',
+        stem: '下列何者使用了「對偶」修辭？',
+        options: [
+            { label: 'A', text: '千山鳥飛絕，萬徑人蹤滅' },
+            { label: 'B', text: '月落烏啼霜滿天' },
+            { label: 'C', text: '夕陽無限好，只是近黃昏' },
+            { label: 'D', text: '春眠不覺曉' }
+        ],
+        answer: 'A', analysis: '選項 A 句式整齊、詞性對稱，屬於典型對偶。',
         history: [
-            { time: '2026-08-05 10:00', user: 'T1003', action: '命題完成', comment: '成語改錯字型' },
-            { time: '2026-08-08 11:20', user: 'T1002', action: '互審意見', comment: '選項很有鑑別度，非常棒。' },
-            { time: '2026-08-12 14:00', user: 'C2001', action: '專審意見 (採用)', comment: '同意採用。' }
+            { time: '2026-08-05 10:00', user: 'T1003', action: '命題完成', comment: '修辭鑑別題' },
+            { time: '2026-08-08 11:20', user: 'T1002', action: '互審意見', comment: '選項鑑別度佳。' },
+            { time: '2026-08-12 14:00', user: 'C2001', action: '專審意見 (採用)', comment: '同意進入總審。' }
         ]
     },
-    // 3. 閱讀題組 (readGroup)
     {
-        id: 'Q-2602-005', project_id: 'P2026-01', type: 'readGroup', level: '高級', difficulty: 'hard', author_id: 'T1002',
+        id: 'Q-2602-003', project_id: 'P2026-01', type: 'readGroup', level: '高級', difficulty: 'hard', author_id: 'T1002',
         stage: 4, status: 'expert_reviewing', returnCount: 0,
-        content: `
-            <div class="mb-6">
-                <span class="inline-block px-2 py-1 bg-orange-50 border border-orange-200 text-orange-600 rounded text-xs font-bold mb-3">閱讀題組</span>
-                <div class="bg-gray-50 border border-gray-200 rounded-lg p-5">
-                    <p class="text-gray-600 mb-4 whitespace-pre-wrap leading-relaxed">閱讀以下古文節選，回答第1～2題。
-
-「庖丁為文惠君解牛，手之所觸，肩之所倚，足之所履，膝之所踦，砉然響然，奏刀騞然，莫不中音。合於桑林之舞，乃中經首之會。」（《莊子・養生主》）</p>
-                </div>
-            </div>
-            
-            <div class="space-y-6">
-                <!-- 子題 1 -->
-                <div class="border-t border-gray-100 pt-6">
-                    <div class="flex items-start gap-4">
-                        <div class="bg-blue-500 text-white px-3 py-1 rounded text-sm font-bold flex-shrink-0">第1題</div>
-                        <div class="flex-grow">
-                            <p class="mb-4 text-gray-800 font-medium">文中「手之所觸，肩之所倚，足之所履，膝之所踦」使用了何種修辭手法？</p>
-                            <div class="space-y-3 mb-4">
-                                <div class="flex gap-2 text-gray-600"><span>(A)</span> 譬喻</div>
-                                <div class="flex gap-2 bg-green-50 border border-green-200 text-green-700 p-2 rounded items-center justify-between font-bold">
-                                    <div><span>(B)</span> 排比</div>
-                                    <i class="fa-solid fa-circle-check"></i>
-                                </div>
-                                <div class="flex gap-2 text-gray-600"><span>(C)</span> 轉化</div>
-                                <div class="flex gap-2 text-gray-600"><span>(D)</span> 誇飾</div>
-                            </div>
-                            <div class="p-3 bg-yellow-50 rounded-lg border border-yellow-100 text-sm">
-                                <p class="text-yellow-700 font-bold inline-block mr-2"><i class="fa-regular fa-lightbulb"></i> 解析</p>
-                                <span class="text-gray-700">「手之所觸，肩之所倚，足之所履，膝之所踦」四個句式結構相同，屬排比修辭。</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <!-- 子題 2 -->
-                <div class="border-t border-gray-100 pt-6">
-                    <div class="flex items-start gap-4">
-                        <div class="bg-blue-500 text-white px-3 py-1 rounded text-sm font-bold flex-shrink-0">第2題</div>
-                        <div class="flex-grow">
-                            <p class="mb-4 text-gray-800 font-medium">「合於桑林之舞，乃中經首之會」意在說明什麼？</p>
-                            <div class="space-y-3 mb-4">
-                                <div class="flex gap-2 text-gray-600"><span>(A)</span> 庖丁解牛時動作配合音樂節拍</div>
-                                <div class="flex gap-2 bg-green-50 border border-green-200 text-green-700 p-2 rounded items-center justify-between font-bold">
-                                    <div><span>(B)</span> 庖丁技藝精湛，動作如舞蹈般優美</div>
-                                    <i class="fa-solid fa-circle-check"></i>
-                                </div>
-                                <div class="flex gap-2 text-gray-600"><span>(C)</span> 文惠君觀看庖丁表演舞蹈</div>
-                                <div class="flex gap-2 text-gray-600"><span>(D)</span> 庖丁喜歡邊跳舞邊工作</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `,
+        passage: '閱讀以下古文節選，回答第 1～2 題。\n\n「庖丁為文惠君解牛，手之所觸，肩之所倚，足之所履，膝之所踦，砉然響然，奏刀騞然，莫不中音。」',
+        subQuestions: [
+            {
+                stem: '文中「手之所觸，肩之所倚，足之所履，膝之所踦」使用了何種修辭手法？',
+                options: [
+                    { label: 'A', text: '譬喻' },
+                    { label: 'B', text: '排比' },
+                    { label: 'C', text: '誇飾' },
+                    { label: 'D', text: '設問' }
+                ],
+                answer: 'B'
+            },
+            {
+                stem: '這段文字主要凸顯庖丁具備何種特質？',
+                options: [
+                    { label: 'A', text: '勇敢' },
+                    { label: 'B', text: '細心' },
+                    { label: 'C', text: '技藝純熟' },
+                    { label: 'D', text: '善於辯論' }
+                ],
+                answer: 'C'
+            }
+        ],
+        analysis: '本題組重點在於理解古文描寫技巧，以及從細節歸納人物特質。',
         history: [
-            { time: '2026-08-12 11:00', user: 'T1002', action: '命題完成', comment: '長文閱讀題組初稿' },
-            { time: '2026-08-16 16:00', user: 'T1001', action: '互審意見', comment: '第二段語氣不夠通順，建議微調。' },
-            { time: '2026-08-18 10:00', user: 'T1002', action: '互審修改完成', comment: '已修飾段落語氣並重新送審。' }
+            { time: '2026-08-12 11:00', user: 'T1002', action: '命題完成', comment: '古文閱讀題組初稿' },
+            { time: '2026-08-16 16:00', user: 'T1001', action: '互審意見', comment: '語氣可再順一些。' }
         ]
     },
     {
-        id: 'Q-2602-006', project_id: 'P2026-01', type: 'readGroup', level: '中級', difficulty: 'medium', author_id: 'T1001',
-        stage: 6, status: 'adopted', returnCount: 0,
-        content: `
-            <div class="mb-6">
-                <span class="inline-block px-2 py-1 bg-orange-50 border border-orange-200 text-orange-600 rounded text-xs font-bold mb-3">閱讀題組</span>
-                <div class="bg-gray-50 border border-gray-200 rounded-lg p-5">
-                    <p class="text-gray-600 whitespace-pre-wrap leading-relaxed">孟子曰：「魚，我所欲也；熊掌，亦我所欲也。二者不可得兼，舍魚而取熊掌者也...」</p>
-                </div>
-            </div>
-            <div class="space-y-6">
-                <div class="border-t border-gray-100 pt-6">
-                    <div class="flex items-start gap-4">
-                        <div class="bg-blue-500 text-white px-3 py-1 rounded text-sm font-bold flex-shrink-0">第1題</div>
-                        <div class="flex-grow">
-                            <p class="mb-4 text-gray-800 font-medium">「二者不可得兼」的意思為何？</p>
-                            <div class="space-y-3 mb-4">
-                                <div class="flex gap-2 bg-green-50 border border-green-200 text-green-700 p-2 rounded items-center justify-between font-bold">
-                                    <div><span>(A)</span> 兩樣東西無法同時擁有</div>
-                                    <i class="fa-solid fa-circle-check"></i>
-                                </div>
-                                <div class="flex gap-2 text-gray-600"><span>(B)</span> 兩個人不能在一起</div>
-                                <div class="flex gap-2 text-gray-600"><span>(C)</span> 兩種價格都不便宜</div>
-                                <div class="flex gap-2 text-gray-600"><span>(D)</span> 兩件事都不能做</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `,
-        history: [
-            { time: '2026-08-01 09:00', user: 'T1001', action: '命題完成', comment: '古文閱讀' },
-            { time: '2026-08-05 14:00', user: 'T1002', action: '互審意見', comment: '經典文章，子題設計精準。' },
-            { time: '2026-08-10 10:00', user: 'C2002', action: '專審意見 (採用)', comment: '沒問題，入總審。' },
-            { time: '2026-08-15 11:30', user: 'S3001', action: '總召決策 (採用)', comment: '採用。' }
-        ]
-    },
-    // 4. 長文題目 (longText)
-    {
-        id: 'Q-2602-007', project_id: 'P2026-01', type: 'longText', level: '優級', difficulty: 'hard', author_id: 'T1003',
+        id: 'Q-2602-004', project_id: 'P2026-01', type: 'longText', level: '優級', difficulty: 'hard', author_id: 'T1003',
         stage: 7, status: 'final_editing', returnCount: 3,
-        content: `
-            <div class="mb-4 p-4 bg-red-50 text-red-700 border border-red-200 rounded-lg flex items-center gap-2 font-bold animate-pulse">
-                <i class="fa-solid fa-triangle-exclamation"></i> 【總召強制收回編輯處理中】
-            </div>
-            <p class="font-medium text-lg mb-2">請以「如果時間可以倒流」為題，撰寫一篇至少 600 字的抒情散文。</p>
-            <p class="text-gray-600 bg-gray-50 p-4 border border-gray-200 rounded-lg mt-4"><strong>寫作要求：</strong><br>內容必須包含對過去某件具體事件的遺憾，以及在虛擬的時光倒流中，你將如何做出不同的選擇，並反思這樣的選擇對現在或未來的期許。請注重情感的描寫與文字的流暢度。</p>
-        `,
+        stem: '請以「如果時間可以倒流」為題，寫一篇作文。文章需描述你想重新面對的一件往事，說明你會如何做出不同選擇，並反思這個選擇可能帶來的改變。字數以 600 字左右為原則。',
+        analysis: '本題著重在敘事完整性、情感真實度與反思深度，評閱時應特別觀察轉折安排與立意是否清楚。',
         history: [
             { time: '2026-08-01 09:00', user: 'T1003', action: '命題完成', comment: '' },
-            { time: '2026-08-05 10:00', user: 'T1004', action: '互審意見', comment: '引導語寫得很棒。' },
-            { time: '2026-08-10 14:00', user: 'C2002', action: '專審意見 (採用)', comment: '進入總審' },
-            { time: '2026-08-15 09:00', user: 'S3001', action: '總召決策 (改後再審)', comment: '退回第一次：寫作指引不夠明確，請補充評分重點。' },
-            { time: '2026-08-18 11:00', user: 'T1003', action: '總審修改完成', comment: '已補充評分標準' },
-            { time: '2026-08-20 16:00', user: 'S3001', action: '總召決策 (改後再審)', comment: '退回第二次：字數要求不合理，請調整為 500-600 字之間。' },
-            { time: '2026-08-23 10:00', user: 'T1003', action: '總審修改完成', comment: '已上調字數' },
-            { time: '2026-08-26 15:00', user: 'S3001', action: '總召決策 (改後再審)', comment: '【觸發三次退回底線】方向依然不對，由總召強制收回權限自行修改！' }
+            { time: '2026-08-15 09:00', user: 'S3001', action: '總召決策 (改後再審)', comment: '請補充評分重點。' },
+            { time: '2026-08-26 15:00', user: 'S3001', action: '總召決策 (改後再審)', comment: '觸發三次退回底線，由總召收回處理。' }
         ]
     },
     {
-        id: 'Q-2602-008', project_id: 'P2026-01', type: 'longText', level: '中高級', difficulty: 'medium', author_id: 'T1004',
-        stage: 3, status: 'peer_editing', returnCount: 0,
-        content: '<p class="font-medium text-lg">請撰寫一篇關於「校園欺凌」的論說文，字數不少於 500 字。</p>',
-        history: [
-            { time: '2026-08-28 09:00', user: 'T1004', action: '命題完成', comment: '論說文題目' },
-            { time: '2026-08-30 14:00', user: 'T1001', action: '互審意見', comment: '題目略顯生硬，建議提供一則新聞情境來引導學生。' }
-        ]
-    },
-    // 5. 短文題組 (shortGroup)
-    {
-        id: 'Q-2602-009', project_id: 'P2026-01', type: 'shortGroup', level: '初級', difficulty: 'easy', author_id: 'T1001',
+        id: 'Q-2602-005', project_id: 'P2026-01', type: 'shortGroup', level: '中級', difficulty: 'medium', author_id: 'T1001',
         stage: 1, status: 'completed', returnCount: 0,
-        content: `
-            <div class="mb-6">
-                <span class="inline-block px-2 py-1 bg-green-50 border border-green-200 text-green-600 rounded text-xs font-bold mb-3">短文題組</span>
-                <div class="bg-gray-50 border border-gray-200 rounded-lg p-5">
-                    <p class="text-gray-600 mb-4 whitespace-pre-wrap leading-relaxed">閱讀下面短文，回答第 1~2 題。
-
-「一個人的價值不在於他擁有什麼，而在於他貢獻了什麼。真正有意義的人生，是不斷為他人創造價值的過程。」</p>
-                </div>
-            </div>
-            <div class="space-y-6">
-                <div class="border-t border-gray-100 pt-6">
-                    <div class="flex items-start gap-4">
-                        <div class="bg-blue-500 text-white px-3 py-1 rounded text-sm font-bold flex-shrink-0">第1題</div>
-                        <div class="flex-grow">
-                            <p class="mb-4 text-gray-800 font-medium">作者認為衡量一個人價值的標準是什麼？請根據短文內容加以說明。</p>
-                            <div class="mb-4 px-3 py-2 bg-gray-50 border border-gray-200 border-dashed rounded text-gray-500 text-sm flex items-center gap-2 w-max">
-                                <i class="fa-solid fa-pen-to-square"></i> 論述題 (自由作答)
-                            </div>
-                            <div class="p-3 bg-yellow-50 rounded-lg border border-yellow-100 text-sm">
-                                <p class="text-yellow-700 font-bold inline-block mr-2"><i class="fa-regular fa-lightbulb"></i> 解析</p>
-                                <span class="text-gray-700">作者認為一個人的價值取決於「貢獻了什麼」，而非「擁有什麼」，強調付出與創造價值的重要性。</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="border-t border-gray-100 pt-6">
-                    <div class="flex items-start gap-4">
-                        <div class="bg-blue-500 text-white px-3 py-1 rounded text-sm font-bold flex-shrink-0">第2題</div>
-                        <div class="flex-grow">
-                            <p class="mb-4 text-gray-800 font-medium">你同意作者的觀點嗎？請舉出一個生活實例，說明你的看法。</p>
-                            <div class="mb-4 px-3 py-2 bg-gray-50 border border-gray-200 border-dashed rounded text-gray-500 text-sm flex items-center gap-2 w-max">
-                                <i class="fa-solid fa-pen-to-square"></i> 論述題 (自由作答)
-                            </div>
-                            <div class="p-3 bg-yellow-50 rounded-lg border border-yellow-100 text-sm">
-                                <p class="text-yellow-700 font-bold inline-block mr-2"><i class="fa-regular fa-lightbulb"></i> 解析</p>
-                                <span class="text-gray-700">此為開放式題目，重點考核學生能否結合自身經驗闡述對「價值」的理解與反思能力。</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        `,
+        passage: '閱讀下面短文，回答第 1～2 題。\n\n「一個人的價值不在於他擁有什麼，而在於他貢獻了什麼。真正有意義的人生，是不斷為他人創造價值的過程。」',
+        subQuestions: [
+            {
+                stem: '作者認為衡量一個人價值的標準是什麼？請根據短文內容加以說明。',
+                analysis: '重點在於說明「貢獻」而非「擁有」才是價值核心。'
+            },
+            {
+                stem: '你是否同意作者觀點？請舉生活實例說明你的看法。',
+                analysis: '可從生活經驗出發，結合短文觀點表達個人立場。'
+            }
+        ],
         history: [
-            { time: '2026-09-01 10:00', user: 'T1001', action: '命題完成', comment: '基礎生活情境題' }
+            { time: '2026-09-01 10:00', user: 'T1001', action: '命題完成', comment: '生活情境題組' }
         ]
     },
     {
-        id: 'Q-2602-010', project_id: 'P2026-01', type: 'shortGroup', level: '中級', difficulty: 'medium', author_id: 'T1002',
-        stage: 5, status: 'expert_reviewed', returnCount: 0,
-        content: '<p>閱讀這首現代詩：</p><p>白雲飄過山頭，像是一抹散不去的哀愁...</p>',
+        id: 'Q-2602-006', project_id: 'P2026-01', type: 'listen', level: '難度三', difficulty: 'medium', author_id: 'T1004',
+        stage: 5, status: 'expert_editing', returnCount: 1,
+        audioUrl: 'demo_audio_001.mp3',
+        stem: '請問講者在對話中主要想表達什麼？',
+        options: [
+            { label: 'A', text: '工作進度落後' },
+            { label: 'B', text: '需要增加預算' },
+            { label: 'C', text: '團隊溝通出問題' },
+            { label: 'D', text: '客戶反應不佳' }
+        ],
+        answer: 'C', analysis: '講者反覆提到訊息沒有同步、會議結論未被執行，可判斷問題核心在於溝通。',
         history: [
-            { time: '2026-08-20 09:00', user: 'T1002', action: '命題完成', comment: '新詩賞析' },
-            { time: '2026-08-25 10:00', user: 'T1003', action: '互審意見', comment: '意境很美，子題選項合理。' },
-            { time: '2026-09-02 11:00', user: 'C2001', action: '專審意見 (採用)', comment: '同意採用。' }
-        ]
-    },
-    // 6. 聽力測驗 (listen)
-    {
-        id: 'Q-2602-011', project_id: 'P2026-01', type: 'listen', level: '難度三', difficulty: 'medium', author_id: 'T1003',
-        stage: 5, status: 'expert_editing', returnCount: 0,
-        content: `
-            <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100 flex items-center gap-4">
-                <div class="w-12 h-12 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 text-xl shadow-sm">
-                    <i class="fa-solid fa-volume-high"></i>
-                </div>
-                <div class="flex-grow">
-                    <div class="text-sm font-bold text-blue-800 mb-2">請聆聽音檔</div>
-                    <audio controls class="w-full h-10 outline-none">
-                        <!-- 這是展示用的空 source，實際開發會放置正確音檔連結 -->
-                        <source src="#" type="audio/mpeg">
-                        您的瀏覽器不支援 audio 元素。
-                    </audio>
-                </div>
-            </div>
-            <p class="font-medium text-gray-800 mb-4">請問講者在對話中主要想表達什麼？</p>
-            <ul class="space-y-2 ml-2">
-                <li>(A) 工作進度落後</li>
-                <li>(B) 需要增加預算</li>
-                <li class="bg-green-50 border border-green-200 text-green-700 p-2 rounded font-bold flex justify-between items-center">(C) 團隊溝通出問題 <i class="fa-solid fa-circle-check"></i></li>
-                <li>(D) 客戶反應不佳</li>
-            </ul>
-        `,
-        history: [
-            { time: '2026-08-10 09:00', user: 'T1003', action: '命題完成', comment: '' },
-            { time: '2026-08-14 13:00', user: 'T1004', action: '互審意見', comment: '音檔還算清晰，題目可接受。' },
-            { time: '2026-08-22 15:00', user: 'C2002', action: '專審意見 (改後再審)', comment: '錄音有背景雜音，選項 C 與 D 過於相似，請微調。' }
+            { time: '2026-08-10 09:00', user: 'T1004', action: '命題完成', comment: '職場情境聽力' },
+            { time: '2026-08-22 15:00', user: 'C2002', action: '專審意見 (改後再審)', comment: '選項 C 與 D 可再拉開差距。' }
         ]
     },
     {
-        id: 'Q-2602-012', project_id: 'P2026-01', type: 'listen', level: '難度一', difficulty: 'easy', author_id: 'T1004',
-        stage: 6, status: 'adopted', returnCount: 0,
-        content: `
-            <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-100 flex items-center gap-4">
-                <div class="w-12 h-12 bg-blue-500 text-white rounded-full flex items-center justify-center flex-shrink-0 text-xl shadow-sm">
-                    <i class="fa-solid fa-volume-high"></i>
-                </div>
-                <div class="flex-grow">
-                    <div class="text-sm font-bold text-blue-800 mb-2">對話音檔</div>
-                    <audio controls class="w-full h-10 outline-none">
-                        <source src="#" type="audio/mpeg">
-                    </audio>
-                </div>
-            </div>
-            <p class="font-medium text-gray-800 mb-4">對話中的男生即將去哪裡？</p>
-            <ul class="space-y-2 ml-2">
-                <li class="bg-green-50 border border-green-200 text-green-700 p-2 rounded font-bold flex justify-between items-center">(A) 圖書館 <i class="fa-solid fa-circle-check"></i></li>
-                <li>(B) 游泳池</li>
-                <li>(C) 超市</li>
-                <li>(D) 學校</li>
-            </ul>
-        `,
-        history: [
-            { time: '2026-08-01 09:00', user: 'T1004', action: '命題完成', comment: '簡易情境聽力' },
-            { time: '2026-08-05 14:00', user: 'T1003', action: '互審意見', comment: '沒問題，音檔很清楚。' },
-            { time: '2026-08-10 10:00', user: 'C2001', action: '專審意見 (採用)', comment: '入總審' },
-            { time: '2026-08-15 11:30', user: 'S3001', action: '總召決策 (採用)', comment: '採用' }
-        ]
-    },
-    // 7. 聽力題組 (listenGroup)
-    {
-        id: 'Q-2602-013', project_id: 'P2026-01', type: 'listenGroup', level: '難度四', difficulty: 'hard', author_id: 'T1001',
+        id: 'Q-2602-007', project_id: 'P2026-01', type: 'listenGroup', level: '難度四', difficulty: 'hard', author_id: 'T1002',
         stage: 2, status: 'peer_reviewing', returnCount: 0,
-        content: `
-            <div class="mb-6">
-                <span class="inline-block px-2 py-1 bg-pink-50 border border-pink-200 text-pink-600 rounded text-xs font-bold mb-3">聽力題組</span>
-                <div class="bg-blue-500 rounded-lg p-4 flex items-center gap-4 text-white shadow-sm mb-4">
-                    <i class="fa-solid fa-volume-high text-2xl"></i>
-                    <div class="flex-grow">
-                        <div class="text-sm font-bold mb-2">請聆聽音檔</div>
-                        <audio controls class="w-full h-10 outline-none custom-audio-player">
-                            <source src="#" type="audio/mpeg">
-                        </audio>
-                    </div>
-                </div>
-                <div class="bg-gray-50 border border-gray-200 rounded-lg p-5">
-                    <p class="text-gray-700 font-medium">【聽力題組】請先聽一段對話後，回答以下兩道子題。</p>
-                </div>
-            </div>
-            <div class="space-y-6">
-                <div class="border-t border-gray-100 pt-6">
-                    <div class="flex items-start gap-4">
-                        <div class="bg-blue-500 text-white px-3 py-1 rounded text-sm font-bold flex-shrink-0">第1題</div>
-                        <div class="flex-grow">
-                            <p class="mb-4 text-gray-800 font-medium">根據對話內容，說話者最可能在什麼場合？</p>
-                            <div class="space-y-3 mb-4">
-                                <div class="flex gap-2 text-gray-600"><span>(A)</span> 學校教室</div>
-                                <div class="flex gap-2 text-gray-600"><span>(B)</span> 醫院診間</div>
-                                <div class="flex gap-2 bg-green-50 border border-green-200 text-green-700 p-2 rounded items-center justify-between font-bold">
-                                    <div><span>(C)</span> 辦公室會議室</div>
-                                    <i class="fa-solid fa-circle-check"></i>
-                                </div>
-                                <div class="flex gap-2 text-gray-600"><span>(D)</span> 百貨公司櫃台</div>
-                            </div>
-                            <div class="p-3 bg-yellow-50 rounded-lg border border-yellow-100 text-sm">
-                                <p class="text-yellow-700 font-bold inline-block mr-2"><i class="fa-regular fa-lightbulb"></i> 解析</p>
-                                <span class="text-gray-700">對話中提及「報告」、「進度」、「下週一前」等關鍵詞，可推斷為職場情境。</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="border-t border-gray-100 pt-6">
-                    <div class="flex items-start gap-4">
-                        <div class="bg-blue-500 text-white px-3 py-1 rounded text-sm font-bold flex-shrink-0">第2題</div>
-                        <div class="flex-grow">
-                            <p class="mb-4 text-gray-800 font-medium">對話中的女性最後表達了什麼態度？</p>
-                            <div class="space-y-3 mb-4">
-                                <div class="flex gap-2 text-gray-600"><span>(A)</span> 強烈不滿</div>
-                                <div class="flex gap-2 text-gray-600"><span>(B)</span> 欣然接受</div>
-                                <div class="flex gap-2 text-gray-600"><span>(C)</span> 委婉拒絕</div>
-                                <div class="flex gap-2 bg-green-50 border border-green-200 text-green-700 p-2 rounded items-center justify-between font-bold">
-                                    <div><span>(D)</span> 勉強同意</div>
-                                    <i class="fa-solid fa-circle-check"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <style>
-            /* 針對在深色背景上的原生 audio 進行簡易顏色覆蓋體驗優化 */
-            .custom-audio-player::-webkit-media-controls-enclosure {
-                background-color: rgba(255,255,255,0.9);
+        audioUrl: 'demo_audio_group_001.mp3',
+        passage: '【聽力題組】請先聆聽一段訪談，了解青年返鄉後如何將閒置穀倉改造成社區共學空間，再回答以下兩道子題。',
+        subQuestions: [
+            {
+                stem: '根據內容，青年返鄉後最先處理的是哪一件事？',
+                options: [
+                    { label: 'A', text: '募集企業贊助' },
+                    { label: 'B', text: '整理閒置穀倉空間' },
+                    { label: 'C', text: '成立觀光工廠' },
+                    { label: 'D', text: '大量招募外地講師' }
+                ],
+                answer: 'B'
+            },
+            {
+                stem: '主持人認為這個計畫最重要的價值是什麼？',
+                options: [
+                    { label: 'A', text: '提高地方收入' },
+                    { label: 'B', text: '推動夜間經濟' },
+                    { label: 'C', text: '讓不同世代在同一空間學習' },
+                    { label: 'D', text: '增加觀光打卡點' }
+                ],
+                answer: 'C'
             }
-            </style>
-        `,
+        ],
+        analysis: '題組重點在於掌握事件順序與主持人總結的核心價值。',
         history: [
-            { time: '2026-09-08 17:00', user: 'T1001', action: '命題完成', comment: '包含三個子題的廣播聽力' }
-        ]
-    },
-    {
-        id: 'Q-2602-014', project_id: 'P2026-01', type: 'listenGroup', level: '難度二', difficulty: 'medium', author_id: 'T1002',
-        stage: 6, status: 'adopted', returnCount: 0,
-        content: `
-            <div class="mb-6">
-                <span class="inline-block px-2 py-1 bg-pink-50 border border-pink-200 text-pink-600 rounded text-xs font-bold mb-3">聽力題組</span>
-                <div class="bg-blue-500 rounded-lg p-4 flex items-center gap-4 text-white shadow-sm mb-4">
-                    <i class="fa-solid fa-volume-high text-2xl"></i>
-                    <div class="flex-grow">
-                        <div class="text-sm font-bold mb-2">請聆聽這段電話留言：</div>
-                        <audio controls class="w-full h-10 outline-none custom-audio-player">
-                            <source src="#" type="audio/mpeg">
-                        </audio>
-                    </div>
-                </div>
-                <div class="bg-gray-50 border border-gray-200 rounded-lg p-5">
-                    <p class="text-gray-700 font-medium">【聽力題組】請聆聽這段兩位朋友的電話留言，判斷並回答子題 1~2。</p>
-                </div>
-            </div>
-            <div class="space-y-6">
-                <div class="border-t border-gray-100 pt-6">
-                    <div class="flex items-start gap-4">
-                        <div class="bg-blue-500 text-white px-3 py-1 rounded text-sm font-bold flex-shrink-0">第1題</div>
-                        <div class="flex-grow">
-                            <p class="mb-4 text-gray-800 font-medium">留言的人希望何時見面？</p>
-                            <div class="space-y-3 mb-4">
-                                <div class="flex gap-2 text-gray-600"><span>(A)</span> 今天晚上</div>
-                                <div class="flex gap-2 bg-green-50 border border-green-200 text-green-700 p-2 rounded items-center justify-between font-bold">
-                                    <div><span>(B)</span> 明天中午</div>
-                                    <i class="fa-solid fa-circle-check"></i>
-                                </div>
-                                <div class="flex gap-2 text-gray-600"><span>(C)</span> 週末下午</div>
-                                <div class="flex gap-2 text-gray-600"><span>(D)</span> 下週三</div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="border-t border-gray-100 pt-6">
-                    <div class="flex items-start gap-4">
-                        <div class="bg-blue-500 text-white px-3 py-1 rounded text-sm font-bold flex-shrink-0">第2題</div>
-                        <div class="flex-grow">
-                            <p class="mb-4 text-gray-800 font-medium">他們最後決定去哪間餐廳？</p>
-                            <div class="space-y-3 mb-4">
-                                <div class="flex gap-2 text-gray-600"><span>(A)</span> 新開的義大利麵館</div>
-                                <div class="flex gap-2 text-gray-600"><span>(B)</span> 公司樓下的便當店</div>
-                                <div class="flex gap-2 text-gray-600"><span>(C)</span> 轉角的咖啡廳</div>
-                                <div class="flex gap-2 bg-green-50 border border-green-200 text-green-700 p-2 rounded items-center justify-between font-bold">
-                                    <div><span>(D)</span> 站前的日式料理</div>
-                                    <i class="fa-solid fa-circle-check"></i>
-                                </div>
-                            </div>
-                            <div class="p-3 bg-yellow-50 rounded-lg border border-yellow-100 text-sm">
-                                <p class="text-yellow-700 font-bold inline-block mr-2"><i class="fa-regular fa-lightbulb"></i> 解析</p>
-                                <span class="text-gray-700">留言末段提及「想吃生魚片，我們就去車站前面那家吧」，故選日式料理。</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <style>
-            /* 針對在深色背景上的原生 audio 進行簡易顏色覆蓋體驗優化 */
-            .custom-audio-player::-webkit-media-controls-enclosure {
-                background-color: rgba(255,255,255,0.9);
-            }
-            </style>
-        `,
-        history: [
-            { time: '2026-08-05 09:00', user: 'T1002', action: '命題完成', comment: '生活情話' },
-            { time: '2026-08-09 14:00', user: 'T1004', action: '互審意見', comment: '留言內容很真實' },
-            { time: '2026-08-12 10:00', user: 'C2002', action: '專審意見 (採用)', comment: '入總審' },
-            { time: '2026-08-16 11:30', user: 'S3001', action: '總召決策 (採用)', comment: '直接採用' }
+            { time: '2026-08-05 09:00', user: 'T1002', action: '命題完成', comment: '地方創生主題' },
+            { time: '2026-08-09 14:00', user: 'T1004', action: '互審意見', comment: '內容真實，題組完整。' }
         ]
     }
 ];
@@ -742,7 +569,7 @@ function openPanel(id) {
     document.getElementById('dtlType').innerText = qTypeMap[q.type];
     document.getElementById('dtlLevel').innerText = q.level;
     document.getElementById('dtlDiff').innerText = diffMap[q.difficulty];
-    document.getElementById('dtlContent').innerHTML = q.content;
+    document.getElementById('dtlContent').innerHTML = renderOverviewQuestionContent(q);
 
     // 狀態 Badge
     const sMeta = statusMap[q.status];
@@ -758,7 +585,7 @@ function openPanel(id) {
         warnBadge.classList.add('hidden');
     }
 
-    // 渲染歷史軌跡 (倒敘)
+    // 渲染歷史軌跡 (最新在上)
     const timelineContainer = document.getElementById('dtlTimelineLogs');
     if (q.history.length === 0) {
         timelineContainer.innerHTML = '<div class="text-sm text-gray-400 py-4">尚無任何歷史軌跡。</div>';
@@ -889,4 +716,6 @@ function exportToCsv() {
         showConfirmButton: false
     });
 }
+
+
 
