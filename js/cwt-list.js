@@ -33,17 +33,17 @@ const diffMap = { 'easy': '易', 'medium': '中', 'hard': '難' };
 
 /** 試題狀態機 */
 const statusMap = {
-    'draft':            { label: '草稿',     color: 'bg-gray-100 text-gray-600',   border: 'border-gray-200',   tab: 'compose' },
-    'completed':        { label: '命題完成', color: 'bg-blue-100 text-blue-700',    border: 'border-blue-200',   tab: 'compose' },
-    'pending':          { label: '已送審',   color: 'bg-yellow-100 text-yellow-700', border: 'border-yellow-200', tab: 'compose' },
-    'peer_reviewing':   { label: '互審中',   color: 'bg-blue-50 text-blue-600',     border: 'border-blue-200',   tab: 'revision' },
-    'peer_editing':     { label: '互審修題', color: 'bg-amber-100 text-amber-700',  border: 'border-amber-300',  tab: 'revision' },
-    'expert_reviewing': { label: '專審中',   color: 'bg-blue-50 text-blue-600',     border: 'border-blue-200',   tab: 'revision' },
-    'expert_editing':   { label: '專審修題', color: 'bg-amber-100 text-amber-700',  border: 'border-amber-300',  tab: 'revision' },
-    'final_reviewing':  { label: '總審中',   color: 'bg-blue-50 text-blue-600',     border: 'border-blue-200',   tab: 'revision' },
-    'final_editing':    { label: '總審修題', color: 'bg-red-100 text-red-700',      border: 'border-red-300',    tab: 'revision' },
-    'adopted':          { label: '採用',     color: 'bg-emerald-100 text-emerald-700', border: 'border-emerald-300', tab: 'history' },
-    'rejected':         { label: '不採用',   color: 'bg-gray-200 text-gray-500',    border: 'border-gray-300',   tab: 'history' }
+    'draft': { label: '草稿', color: 'bg-gray-100 text-gray-600', border: 'border-gray-200', tab: 'compose' },
+    'completed': { label: '命題完成', color: 'bg-blue-100 text-blue-700', border: 'border-blue-200', tab: 'compose' },
+    'pending': { label: '已送審', color: 'bg-yellow-100 text-yellow-700', border: 'border-yellow-200', tab: 'compose' },
+    'peer_reviewing': { label: '互審中', color: 'bg-blue-50 text-blue-600', border: 'border-blue-200', tab: 'revision' },
+    'peer_editing': { label: '互審修題', color: 'bg-amber-100 text-amber-700', border: 'border-amber-300', tab: 'revision' },
+    'expert_reviewing': { label: '專審中', color: 'bg-blue-50 text-blue-600', border: 'border-blue-200', tab: 'revision' },
+    'expert_editing': { label: '專審修題', color: 'bg-amber-100 text-amber-700', border: 'border-amber-300', tab: 'revision' },
+    'final_reviewing': { label: '總審中', color: 'bg-blue-50 text-blue-600', border: 'border-blue-200', tab: 'revision' },
+    'final_editing': { label: '總審修題', color: 'bg-red-100 text-red-700', border: 'border-red-300', tab: 'revision' },
+    'adopted': { label: '採用', color: 'bg-emerald-100 text-emerald-700', border: 'border-emerald-300', tab: 'history' },
+    'rejected': { label: '不採用', color: 'bg-gray-200 text-gray-500', border: 'border-gray-300', tab: 'history' }
 };
 
 /** 審查階段名稱對應 */
@@ -74,6 +74,32 @@ const tabStatusFilterOptions = {
 };
 
 const defaultPageSize = 12;
+const normalLevelOptions = ['初級', '中級', '中高級', '高級', '優級'];
+const listenLevelOptions = ['難度一', '難度二', '難度三', '難度四', '難度五'];
+
+const typeLevelOptions = {
+    all: normalLevelOptions,
+    single: ['初級', '中級', '中高級'],
+    select: normalLevelOptions,
+    readGroup: normalLevelOptions,
+    longText: ['初級', '中級', '中高級', '優級'],
+    shortGroup: normalLevelOptions,
+    listen: listenLevelOptions,
+    listenGroup: listenLevelOptions
+};
+
+const singleChoiceCategoryMap = {
+    '文字': ['字音', '字型', '造字原則'],
+    '語詞': ['辭義辨識', '詞彙辨析', '詞性分辨', '語詞應用'],
+    '成語短語': ['短語辨識', '語詞使用', '文義取得'],
+    '造句標點': ['句義', '句法辨析', '標點符號'],
+    '修辭技巧': ['修辭類型', '語態變化'],
+    '語文知識': ['語文知識'],
+    '文意判讀': ['段義辨析']
+};
+
+const singleChoiceTopics = Object.keys(singleChoiceCategoryMap);
+const longTextModeOptions = ['引導寫作', '資訊整合'];
 // ===================================================================
 // Mock 資料 — 命題教師 (T1001 劉雅婷) 的配額與試題
 // ===================================================================
@@ -100,12 +126,15 @@ const qTypeConfig = {
     },
     longText: {
         hasStem: true,
-        stemLabel: '作文題幹',
+        stemLabel: '題目',
         hasOptions: false,
-        hasPassage: false,
+        hasPassage: true,
+        passageLabel: '文章內容',
         hasSubQuestions: false,
         subQuestionMode: null,
-        hasAudio: false
+        hasAudio: false,
+        analysisLabel: '批閱說明',
+        analysisPlaceholder: '請簡要說明長文題目的批閱說明...'
     },
     readGroup: {
         hasStem: false,
@@ -169,6 +198,9 @@ const getQuestionSearchText = (question) => {
         question.passage,
         question.analysis,
         question.reviewComment,
+        question.attributes?.topic,
+        question.attributes?.subtopic,
+        question.attributes?.mode,
         ...(question.options || []).map(option => option.text),
         ...(question.subQuestions || []).flatMap((subQuestion) => [
             subQuestion.stem,
@@ -199,8 +231,8 @@ const getQuestionPreviewMeta = (question) => {
 
     if (question.type === 'longText') {
         return {
-            stemPreview: stripHtml(question.stem || '(尚未輸入作文題幹)'),
-            optionPreview: '<span class="text-gray-400 text-xs">作文題，無選項</span>'
+            stemPreview: stripHtml(question.stem || question.passage || '(尚未輸入題目或文章內容)'),
+            optionPreview: `<span class="text-gray-400 text-xs">${question.attributes?.mode ? `題型：${question.attributes.mode}` : '長文題，無選項'}</span>`
         };
     }
 
@@ -326,13 +358,16 @@ let myQuestionsDb = [
     {
         id: 'Q-2602-M006', projectId: 'P2026-01', type: 'longText', level: '中高級', difficulty: 'medium',
         status: 'draft',
-        stem: '請以「如果課本外也有教室」為題，撰寫一篇作文。文章需結合一段你在校園、家庭或社區中的真實觀察，說明你曾在哪裡學到課本之外的重要事情，並寫出這段經驗如何改變你看待學習的方式。字數以 500 至 700 字為原則。',
+        stem: '如果課本外也有教室',
+        passage: '請以「如果課本外也有教室」為題，撰寫一篇作文。文章需結合一段你在校園、家庭或社區中的真實觀察，說明你曾在哪裡學到課本之外的重要事情，並寫出這段經驗如何改變你看待學習的方式。字數以 500 至 700 字為原則。',
         options: [],
-        answer: '', analysis: '本題為作文題，重點在於檢視學生能否結合具體經驗、清楚敘事並提出反思。評閱時可觀察立意是否明確、材料是否充實，以及段落組織與語言表達是否流暢。',
+        answer: '',
+        analysis: '本題重點在於檢視學生能否結合具體經驗、清楚敘事並提出反思。批閱時可觀察立意是否明確、材料是否充實，以及段落組織與語言表達是否流暢。',
+        attributes: { mode: '引導寫作' },
         createdAt: '2026-03-06 11:00', updatedAt: '2026-03-06 11:00',
         returnCount: 0, reviewComment: null, reviewerName: null, reviewStage: null, revisionReply: '',
         history: [{ time: '2026-03-06 11:00', user: '劉雅婷', action: '建立草稿', comment: '' }]
-    },{
+    }, {
         id: 'Q-2602-M007', projectId: 'P2026-01', type: 'listen', level: '難度二', difficulty: 'medium',
         status: 'draft',
         stem: '請聽一段對話，回答下列問題：對話中的男子想要做什麼？',
@@ -828,7 +863,7 @@ document.getElementById('filterKeyword')?.addEventListener('input', () => {
 });
 document.getElementById('filterType')?.addEventListener('change', (e) => {
     currentPage = 1;
-    // 依題型切換等級下拉選項（聽力 → 難度一~五；一般 → 初級~優級）
+    // 依題型切換等級下拉選項（一般單選題 → 初級到中高級；聽力 → 難度一到五；其他題型 → 初級到優級）
     syncLevelDropdown(document.getElementById('filterLevel'), e.target.value);
     renderTabContent();
 });
@@ -848,25 +883,23 @@ document.getElementById('pageSizeSelect')?.addEventListener('change', (e) => {
 
 /**
  * 依據題型切換等級下拉選項的顯示
- * 聽力題型 (listen / listenGroup) → 顯示「難度一～難度五」
+ * 一般單選題 → 顯示「初級 / 中級 / 中高級」
+ * 聽力題型 → 顯示「難度一～難度五」
  * 其他題型 → 顯示「初級～優級」
  * @param {HTMLSelectElement} levelSelect - 等級下拉元素
  * @param {string} typeValue - 題型值
  */
 const syncLevelDropdown = (levelSelect, typeValue) => {
     if (!levelSelect) return;
-    const isListen = ['listen', 'listenGroup'].includes(typeValue);
+    const allowedLevels = new Set(typeLevelOptions[typeValue] || typeLevelOptions.all);
 
-    levelSelect.querySelectorAll('.opt-normal').forEach(opt => {
-        opt.classList.toggle('hidden', isListen);
-        opt.disabled = isListen;
-    });
-    levelSelect.querySelectorAll('.opt-listen').forEach(opt => {
-        opt.classList.toggle('hidden', !isListen);
-        opt.disabled = !isListen;
+    levelSelect.querySelectorAll('option').forEach((opt) => {
+        if (opt.value === '' || opt.value === 'all') return;
+        const shouldShow = allowedLevels.has(opt.value);
+        opt.classList.toggle('hidden', !shouldShow);
+        opt.disabled = !shouldShow;
     });
 
-    // 若 "all" 以外的值被隱藏了，重設為 "all" 或空值
     const currentVal = levelSelect.value;
     if (currentVal !== 'all' && currentVal !== '') {
         const selectedOpt = levelSelect.querySelector(`option[value="${currentVal}"]`);
@@ -1117,8 +1150,10 @@ const initFormModal = () => {
 
     // 題型切換 → 連動等級下拉 + 重渲染編輯區
     document.getElementById('formType').addEventListener('change', (e) => {
-        syncLevelDropdown(document.getElementById('formLevel'), e.target.value);
-        renderFormEditorContent(e.target.value);
+        const nextType = e.target.value;
+        syncLevelDropdown(document.getElementById('formLevel'), nextType);
+        renderTypeSpecificAttributes(nextType);
+        renderFormEditorContent(nextType);
     });
 
     // 新增試題按鈕
@@ -1210,6 +1245,7 @@ const openFormModal = (mode, questionId = null) => {
     const typeValue = currentEditingQuestion ? currentEditingQuestion.type : 'single';
     document.getElementById('formType').value = typeValue;
     syncLevelDropdown(document.getElementById('formLevel'), typeValue);
+    renderTypeSpecificAttributes(typeValue);
     renderFormEditorContent(typeValue);
     setFormSidebarCollapsed(isFormSidebarCollapsed);
 
@@ -1249,7 +1285,129 @@ const populateFormSidebar = () => {
     document.getElementById('formDifficulty').value = q?.difficulty || '';
 };
 
-const getFormSidebarExpandedWidth = () => (window.matchMedia('(min-width: 1024px)').matches ? 288 : 240);
+const getSingleChoiceAttributeDefaults = () => ({
+    topic: currentEditingQuestion?.attributes?.topic || '',
+    subtopic: currentEditingQuestion?.attributes?.subtopic || ''
+});
+
+const getSingleChoiceSelection = () => {
+    const defaults = getSingleChoiceAttributeDefaults();
+    return {
+        topic: document.getElementById('formSingleTopic')?.value ?? defaults.topic,
+        subtopic: document.getElementById('formSingleSubtopic')?.value ?? defaults.subtopic
+    };
+};
+
+const getLongTextAttributeDefaults = () => ({
+    mode: currentEditingQuestion?.attributes?.mode || ''
+});
+
+const getLongTextSelection = () => {
+    const defaults = getLongTextAttributeDefaults();
+    return {
+        mode: document.getElementById('formLongTextMode')?.value ?? defaults.mode
+    };
+};
+
+const syncSingleSubtopicOptions = (topic, selectedSubtopic = '') => {
+    const subtopicSelect = document.getElementById('formSingleSubtopic');
+    const hintContainer = document.getElementById('singleSubtopicHint');
+    if (!subtopicSelect || !hintContainer) return;
+
+    const subtopics = singleChoiceCategoryMap[topic] || [];
+    subtopicSelect.innerHTML = `
+        <option value="">${topic ? '請選擇次類' : '請先選擇主題'}</option>
+        ${subtopics.map((subtopic) => `<option value="${subtopic}">${subtopic}</option>`).join('')}
+    `;
+
+    const normalizedSubtopic = subtopics.includes(selectedSubtopic) ? selectedSubtopic : '';
+    subtopicSelect.disabled = !topic;
+    subtopicSelect.classList.toggle('opacity-60', !topic);
+    subtopicSelect.classList.toggle('cursor-not-allowed', !topic);
+    subtopicSelect.value = normalizedSubtopic;
+    subtopicSelect.onchange = () => {
+        syncSingleSubtopicOptions(topic, subtopicSelect.value);
+    };
+
+    hintContainer.className = subtopics.length ? 'grid grid-cols-2 gap-1.5' : 'flex flex-wrap gap-2';
+    hintContainer.innerHTML = subtopics.length
+        ? subtopics.map((subtopic) => `
+            <span class="rounded-lg border px-2 py-1 text-[11px] leading-4 transition-colors ${subtopic === normalizedSubtopic ? 'border-[var(--color-sage)] bg-[var(--color-sage)]/12 text-[var(--color-sage)] font-semibold' : 'border-gray-200 bg-white/80 text-gray-500'}">
+                ${subtopic}
+            </span>`).join('')
+        : '<span class="text-[11px] text-gray-400">先選主題，次類才會跟著出來。</span>';
+};
+
+const renderTypeSpecificAttributes = (type, presetSelection = null) => {
+    const container = document.getElementById('formTypeSpecificAttributes');
+    if (!container) return;
+
+    if (type === 'single') {
+        const selection = presetSelection || getSingleChoiceSelection();
+        const selectedTopic = selection.topic || '';
+        const selectedSubtopic = selection.subtopic || '';
+
+        container.innerHTML = `
+            <section class="rounded-2xl border border-[var(--color-morandi)]/15 bg-gradient-to-br from-[var(--color-morandi)]/10 via-white to-[var(--color-sage)]/10 p-3 space-y-3 shadow-sm">
+                <div class="space-y-1">
+                    <p class="text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-morandi)]">一般單選題分類</p>
+                </div>
+                <div class="rounded-xl bg-white/75 px-3 py-2 text-[11px] leading-4 text-gray-500 border border-white/70">
+                    <span class="font-semibold text-gray-600">適用等級：</span>${typeLevelOptions.single.join(' / ')}
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">主題 <span class="text-red-400">*</span></label>
+                        <select id="formSingleTopic" class="w-full px-2.5 py-2 text-[13px] border border-white/70 bg-white/90 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] cursor-pointer shadow-sm">
+                            <option value="">請選擇主題</option>
+                            ${singleChoiceTopics.map((topic) => `<option value="${topic}" ${selectedTopic === topic ? 'selected' : ''}>${topic}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">次類 <span class="text-red-400">*</span></label>
+                        <select id="formSingleSubtopic" class="w-full px-2.5 py-2 text-[13px] border border-white/70 bg-white/90 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] cursor-pointer shadow-sm"></select>
+                    </div>
+                </div>
+                <div class="space-y-1.5">
+                    <p class="text-[11px] font-bold text-gray-500">次類總覽</p>
+                    <div id="singleSubtopicHint"></div>
+                </div>
+            </section>`;
+
+        document.getElementById('formSingleTopic')?.addEventListener('change', (e) => {
+            syncSingleSubtopicOptions(e.target.value, '');
+        });
+        syncSingleSubtopicOptions(selectedTopic, selectedSubtopic);
+        return;
+    }
+
+    if (type === 'longText') {
+        const selection = presetSelection || getLongTextSelection();
+        const selectedMode = selection.mode || '';
+
+        container.innerHTML = `
+            <section class="rounded-2xl border border-[var(--color-terracotta)]/18 bg-gradient-to-br from-[var(--color-terracotta)]/10 via-white to-[var(--color-oatmeal)] p-3 space-y-3 shadow-sm">
+                <div class="space-y-1">
+                    <p class="text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-terracotta)]">長文題目設定</p>
+                </div>
+                <div class="rounded-xl bg-white/80 px-3 py-2 text-[11px] leading-4 text-gray-500 border border-white/70">
+                    <span class="font-semibold text-gray-600">適用等級：</span>${typeLevelOptions.longText.join(' / ')}
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">題型 <span class="text-red-400">*</span></label>
+                    <select id="formLongTextMode" class="w-full px-2.5 py-2 text-[13px] border border-white/70 bg-white/90 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--color-terracotta)] cursor-pointer shadow-sm">
+                        <option value="">請選擇題型</option>
+                        ${longTextModeOptions.map((mode) => `<option value="${mode}" ${selectedMode === mode ? 'selected' : ''}>${mode}</option>`).join('')}
+                    </select>
+                </div>
+            </section>`;
+        return;
+    }
+
+    container.innerHTML = '';
+};
+
+const getFormSidebarExpandedWidth = () => (window.matchMedia('(min-width: 1024px)').matches ? 304 : 256);
 
 const setFormSidebarCollapsed = (collapsed) => {
     const sidebar = document.getElementById('formSidebar');
@@ -1311,34 +1469,46 @@ const renderFormEditorContent = (type) => {
             </div>`;
     }
 
-    if (config.hasPassage) {
-        const passageContent = q?.passage || '';
-        html += `
-            <div>
-                <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fa-solid fa-book mr-1 text-[var(--color-morandi)]"></i> ${config.passageLabel}</label>
-                <div class="editable-field bg-white text-sm text-gray-700 leading-relaxed" data-field="passage" onclick="activateQuillField(this, 'passage', '${config.passageLabel}')">
-                    ${passageContent || `<span class="text-gray-400 italic">點擊此處開始輸入${config.passageLabel}...</span>`}
-                </div>
-            </div>`;
-    }
-
-    if (config.hasStem) {
+    const renderStemField = (label, placeholder = `點擊此處開始編輯${label}...`) => {
         const stemContent = q?.stem || '';
-        const longTextHint = type === 'longText'
-            ? `
-            <div class="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800 leading-relaxed">
-                <div class="font-bold mb-1"><i class="fa-solid fa-image mr-1"></i> 作文題可搭配附圖</div>
-                <p>點擊題幹後，使用底部編輯器工具列的圖片按鈕即可上傳圖片。附圖會跟著題幹一起儲存，預覽時也會一併顯示。</p>
-            </div>`
-            : '';
         html += `
             <div class="space-y-3">
-                <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fa-solid fa-pen mr-1 text-[var(--color-morandi)]"></i> ${config.stemLabel}</label>
-                ${longTextHint}
-                <div class="editable-field bg-white text-sm text-gray-700 leading-relaxed" data-field="stem" onclick="activateQuillField(this, 'stem', '${config.stemLabel}')">
-                    ${stemContent || `<span class="text-gray-400 italic">點擊此處開始編輯${config.stemLabel}...</span>`}
+                <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fa-solid fa-pen mr-1 text-[var(--color-morandi)]"></i> ${label}</label>
+                <div class="editable-field bg-white text-sm text-gray-700 leading-relaxed" data-field="stem" onclick="activateQuillField(this, 'stem', '${label}')">
+                    ${stemContent || `<span class="text-gray-400 italic">${placeholder}</span>`}
                 </div>
             </div>`;
+    };
+
+    const renderPassageField = (label, required = false, hintHtml = '') => {
+        const passageContent = q?.passage || '';
+        html += `
+            <div class="space-y-3">
+                <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fa-solid fa-book-open mr-1 text-[var(--color-morandi)]"></i> ${label}${required ? ' <span class="text-red-400">*</span>' : ''}</label>
+                ${hintHtml}
+                <div class="editable-field bg-white text-sm text-gray-700 leading-relaxed" data-field="passage" onclick="activateQuillField(this, 'passage', '${label}')">
+                    ${passageContent || `<span class="text-gray-400 italic">點擊此處開始輸入${label}...</span>`}
+                </div>
+            </div>`;
+    };
+
+    if (config.hasStem && type === 'longText') {
+        renderStemField(config.stemLabel, '點擊此處開始編輯題目...');
+    }
+
+    if (config.hasPassage) {
+        const longTextPassageHint = type === 'longText'
+            ? `
+            <div class="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800 leading-relaxed">
+                <div class="font-bold mb-1"><i class="fa-solid fa-image mr-1"></i> 文章內容可附圖</div>
+                <p>點擊文章內容後，可用底部編輯器工具列插入圖片，適合放題幹情境圖或資料圖表。</p>
+            </div>`
+            : '';
+        renderPassageField(config.passageLabel, type === 'longText', longTextPassageHint);
+    }
+
+    if (config.hasStem && type !== 'longText') {
+        renderStemField(config.stemLabel);
     }
 
     if (config.hasOptions) {
@@ -1390,11 +1560,13 @@ const renderFormEditorContent = (type) => {
 
     if (type !== 'shortGroup') {
         const analysisContent = q?.analysis || '';
+        const analysisLabel = config.analysisLabel || '解析';
+        const analysisPlaceholder = config.analysisPlaceholder || '點擊此處編輯解析說明...';
         html += `
             <div>
-                <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fa-regular fa-lightbulb mr-1 text-yellow-500"></i> 解析</label>
-                <div class="editable-field bg-white text-sm text-gray-700 leading-relaxed" data-field="analysis" onclick="activateQuillField(this, 'analysis', '解析')">
-                    ${analysisContent || '<span class="text-gray-400 italic">點擊此處編輯解析說明...</span>'}
+                <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fa-regular fa-lightbulb mr-1 text-yellow-500"></i> ${analysisLabel}</label>
+                <div class="editable-field bg-white text-sm text-gray-700 leading-relaxed" data-field="analysis" onclick="activateQuillField(this, 'analysis', '${analysisLabel}')">
+                    ${analysisContent || `<span class="text-gray-400 italic">${analysisPlaceholder}</span>`}
                 </div>
             </div>`;
     }
@@ -1565,13 +1737,31 @@ const disableFormInputs = () => {
 // 表單資料收集與儲存
 // ===================================================================
 
+/** 收集題型專屬屬性 */
+const collectTypeSpecificAttributes = (type) => {
+    if (type === 'single') {
+        return {
+            topic: document.getElementById('formSingleTopic')?.value || '',
+            subtopic: document.getElementById('formSingleSubtopic')?.value || ''
+        };
+    }
+
+    if (type === 'longText') {
+        return {
+            mode: document.getElementById('formLongTextMode')?.value || ''
+        };
+    }
+
+    return {};
+};
+
 /** 從表單收集當前資料 */
 const collectFormData = () => {
     const type = document.getElementById('formType').value;
     const level = document.getElementById('formLevel').value;
     const difficulty = document.getElementById('formDifficulty').value;
     const config = getTypeConfig(type);
-    const data = { type, level, difficulty };
+    const data = { type, level, difficulty, attributes: collectTypeSpecificAttributes(type) };
 
     document.querySelectorAll('#formEditorArea .editable-field').forEach(el => {
         const field = el.getAttribute('data-field');
@@ -1671,6 +1861,21 @@ const handleFormSubmit = () => {
     // 基本驗證
     if (!data.level || !data.difficulty) {
         Swal.fire({ icon: 'warning', title: '請填寫完整', text: '等級與難易度為必填欄位。' });
+        return;
+    }
+
+    if (data.type === 'single' && (!data.attributes?.topic || !data.attributes?.subtopic)) {
+        Swal.fire({ icon: 'warning', title: '請選擇題目分類', text: '一般單選題需先選擇主題與次類。' });
+        return;
+    }
+
+    if (data.type === 'longText' && !data.attributes?.mode) {
+        Swal.fire({ icon: 'warning', title: '請選擇長文題型', text: '長文題目需先選擇「引導寫作」或「資訊整合」。' });
+        return;
+    }
+
+    if (data.type === 'longText' && !stripHtml(data.passage || '').trim()) {
+        Swal.fire({ icon: 'warning', title: '請填寫文章內容', text: '長文題目的文章內容為必填欄位。' });
         return;
     }
 
@@ -1942,12 +2147,24 @@ const showExamPreview = () => {
     const data = collectFormData();
     const content = document.getElementById('previewContent');
     const config = getTypeConfig(data.type);
+    const previewMetaTags = [];
+
+    if (data.type === 'single' && data.attributes?.topic) {
+        previewMetaTags.push(`<span class="inline-flex items-center rounded-full border border-[var(--color-morandi)]/20 bg-[var(--color-morandi)]/10 px-3 py-1 text-xs font-medium text-[var(--color-morandi)]">主題：${escapeHtml(data.attributes.topic)}</span>`);
+    }
+    if (data.type === 'single' && data.attributes?.subtopic) {
+        previewMetaTags.push(`<span class="inline-flex items-center rounded-full border border-[var(--color-sage)]/20 bg-[var(--color-sage)]/12 px-3 py-1 text-xs font-medium text-[var(--color-sage)]">次類：${escapeHtml(data.attributes.subtopic)}</span>`);
+    }
+    if (data.type === 'longText' && data.attributes?.mode) {
+        previewMetaTags.push(`<span class="inline-flex items-center rounded-full border border-[var(--color-terracotta)]/20 bg-[var(--color-terracotta)]/10 px-3 py-1 text-xs font-medium text-[var(--color-terracotta)]">題型：${escapeHtml(data.attributes.mode)}</span>`);
+    }
 
     let html = `
         <div class="font-serif max-w-2xl mx-auto">
             <div class="text-center mb-6 pb-4 border-b-2 border-gray-800">
                 <h2 class="text-xl font-bold mb-1">全民中文檢定 - 模擬試卷</h2>
                 <p class="text-sm text-gray-500">${qTypeMap[data.type]} ・ ${data.level} ・ 難度：${diffMap[data.difficulty] || '--'}</p>
+                ${previewMetaTags.length ? `<div class="mt-3 flex flex-wrap items-center justify-center gap-2">${previewMetaTags.join('')}</div>` : ''}
             </div>`;
 
     if (config.hasAudio) {
@@ -1958,7 +2175,7 @@ const showExamPreview = () => {
             </div>`;
     }
 
-    if (config.hasPassage) {
+    if (config.hasPassage && data.type !== 'longText') {
         html += `
             <div class="mb-6 p-5 bg-gray-50 border border-gray-200 rounded-xl text-sm leading-relaxed">
                 <div class="prose prose-sm max-w-none">${data.passage || '<p class="text-gray-400">內容尚未填寫</p>'}</div>
@@ -1968,11 +2185,14 @@ const showExamPreview = () => {
     if (data.type === 'longText') {
         html += `
             <div class="mb-6 space-y-4">
-                <div>
-                    <div class="text-xs font-bold tracking-wide text-gray-500 mb-2">作文題幹與附圖</div>
-                    <div class="p-5 bg-white border border-gray-200 rounded-xl shadow-sm leading-relaxed prose prose-sm max-w-none">${data.stem || '<p class="text-gray-400">作文題幹尚未填寫</p>'}</div>
+                <div class="rounded-xl border border-gray-200 bg-white px-5 py-4 shadow-sm">
+                    <div class="text-xs font-bold tracking-wide text-gray-500 mb-2">題目</div>
+                    <div class="text-lg font-bold text-[var(--color-slate-main)]">${data.stem || '（可略）'}</div>
                 </div>
-                <div class="p-4 border border-dashed border-gray-300 rounded-lg text-sm text-gray-500">請考生於答案卷自由作答。若題幹包含附圖，預覽會一併顯示。</div>
+                <div>
+                    <div class="text-xs font-bold tracking-wide text-gray-500 mb-2">文章內容</div>
+                    <div class="p-5 bg-white border border-gray-200 rounded-xl shadow-sm leading-relaxed prose prose-sm max-w-none">${data.passage || '<p class="text-gray-400">文章內容尚未填寫</p>'}</div>
+                </div>
             </div>`;
     } else if (config.hasSubQuestions) {
         (data.subQuestions || []).forEach((sq, i) => {
@@ -2010,9 +2230,10 @@ const showExamPreview = () => {
     }
 
     if (data.analysis && !config.hasSubQuestions) {
+        const analysisTitle = data.type === 'longText' ? '批閱說明' : '解析';
         html += `
             <div class="p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-gray-700">
-                <div class="font-bold text-yellow-700 mb-2">解析</div>
+                <div class="font-bold text-yellow-700 mb-2">${analysisTitle}</div>
                 <div class="leading-relaxed prose prose-sm max-w-none">${data.analysis}</div>
             </div>`;
     }

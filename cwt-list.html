@@ -375,7 +375,7 @@
 
                 <!-- 左側邊欄：屬性設定 -->
                 <div id="formSidebar" class="w-60 lg:w-72 flex-shrink-0 bg-white border-r border-gray-200 overflow-hidden flex flex-col relative transition-[width,transform,border-color,box-shadow] duration-300 ease-out">
-                    <div id="formSidebarBody" class="p-5 space-y-5 flex-grow overflow-y-auto custom-scroll transition-[opacity,transform] duration-300 ease-out">
+                    <div id="formSidebarBody" class="p-4 space-y-4 flex-grow overflow-y-auto custom-scroll transition-[opacity,transform] duration-300 ease-out">
                         <div class="flex items-center justify-between gap-3">
                             <h3 class="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
                                 <i class="fa-solid fa-sliders"></i> 題目屬性
@@ -419,6 +419,9 @@
                             </select>
                         </div>
 
+                        <!-- 題型專屬屬性（依題型動態渲染） -->
+                        <div id="formTypeSpecificAttributes" class="space-y-4"></div>
+
                         <!-- 難易度 -->
                         <div>
                             <label class="block text-sm font-bold text-gray-700 mb-1.5">難易度 <span class="text-red-400">*</span></label>
@@ -438,9 +441,9 @@
                     </div>
 
                     <!-- 側邊欄底部提示 -->
-                    <div id="formSidebarFooter" class="p-4 border-t border-gray-100 bg-gray-50/50 text-xs text-gray-400 leading-relaxed transition-[opacity,transform] duration-300 ease-out">
+                    <div id="formSidebarFooter" class="px-4 py-3 border-t border-gray-100 bg-gray-50/50 text-[11px] text-gray-400 leading-snug transition-[opacity,transform] duration-300 ease-out">
                         <i class="fa-solid fa-circle-info mr-1"></i>
-                        點擊右側編輯區域，底部會滑出 Quill 編輯器供您輸入內容。
+                        點右側欄位，就會滑出底部編輯器。
                     </div>
                 </div>
 
