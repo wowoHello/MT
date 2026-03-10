@@ -88,6 +88,10 @@ const listenCompetencyMap = {
 
 const listenAudioTypeOptions = ['對話', '情境', '陳述'];
 const listenMaterialOptions = ['生活', '教育', '職場', '專業'];
+const listenGroupFixedQuestionConfigs = [
+    { level: '難度三', competency: '推斷訊息', indicator: '推斷訊息邏輯性' },
+    { level: '難度四', competency: '歸納分析', indicator: '歸納或總結訊息內容' }
+];
 
 const typeLevelOptions = {
     all: normalLevelOptions,
@@ -256,7 +260,7 @@ const qTypeConfig = {
         stemLabel: '',
         hasOptions: false,
         hasPassage: true,
-        passageLabel: '聽力腳本',
+        passageLabel: '語音內容',
         hasSubQuestions: true,
         subQuestionMode: 'choice',
         hasAudio: true
@@ -265,7 +269,32 @@ const qTypeConfig = {
 
 const optionLabels = ['A', 'B', 'C', 'D'];
 
+const getListenGroupQuestionConfig = (index) => listenGroupFixedQuestionConfigs[index] || listenGroupFixedQuestionConfigs[0];
+const getNormalizedListenGroupSubQuestions = (subQuestions = []) => (
+    listenGroupFixedQuestionConfigs.map((config, index) => {
+        const source = subQuestions[index] || {};
+        return {
+            stem: source.stem || '',
+            options: optionLabels.map((label, optionIndex) => {
+                const matched = (source.options || []).find((option) => option.label === label);
+                return matched || { label, text: '' };
+            }),
+            answer: source.answer || '',
+            level: config.level,
+            competency: config.competency,
+            indicator: config.indicator
+        };
+    })
+);
+
 const getTypeConfig = (type) => qTypeConfig[type] || qTypeConfig.single;
+const shouldUseCommonLevelAndDifficulty = () => true;
+const getQuestionMetaLine = (question) => {
+    const parts = [];
+    if (question.level) parts.push(question.level);
+    if (question.difficulty) parts.push('難度：' + (diffMap[question.difficulty] || question.difficulty));
+    return parts.join(' / ') || '--';
+};
 
 const getDefaultSubQuestion = (mode = 'choice') => (
     mode === 'freeResponse'
@@ -525,7 +554,10 @@ let myQuestionsDb = [
                     { label: 'C', text: '招募外地講師' },
                     { label: 'D', text: '成立觀光工廠' }
                 ],
-                answer: 'B'
+                answer: 'B',
+                level: '難度三',
+                competency: '推斷訊息',
+                indicator: '推斷訊息邏輯性'
             },
             {
                 stem: '主持人認為這個計畫最有價值的地方是什麼？',
@@ -535,11 +567,15 @@ let myQuestionsDb = [
                     { label: 'C', text: '讓不同世代在同一空間學習' },
                     { label: 'D', text: '增加地方夜市收入' }
                 ],
-                answer: 'C'
+                answer: 'C',
+                level: '難度四',
+                competency: '歸納分析',
+                indicator: '歸納或總結訊息內容'
             }
         ],
         options: [], answer: '',
-        analysis: '本題組聚焦在聽取重點與歸納訪談主旨。作答時需掌握受訪者的行動順序，以及主持人總結時提到的核心價值。',
+        analysis: '',
+        attributes: { audioType: '對話', material: '教育' },
         createdAt: '2026-03-08 10:30', updatedAt: '2026-03-09 09:10',
         returnCount: 0, reviewComment: null, reviewerName: null, reviewStage: null, revisionReply: '',
         history: [
@@ -1196,7 +1232,7 @@ const renderQuestionList = () => {
                         <div class="font-mono text-sm font-bold text-[var(--color-morandi)]">${q.id}</div>
                         <div class="flex flex-wrap items-center gap-1.5 mt-1">
                             <span class="text-xs px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded font-medium"><i class="${qTypeIcon[q.type]} mr-0.5 text-[10px]"></i> ${qTypeMap[q.type]}</span>
-                            <span class="text-xs text-gray-400">${q.level} / ${diffMap[q.difficulty] || ''}</span>
+                            <span class="text-xs text-gray-400">${getQuestionMetaLine(q)}</span>
                         </div>
                     </div>
                     <div class="flex-grow min-w-0">
@@ -1258,6 +1294,7 @@ const initFormModal = () => {
     document.getElementById('formType').addEventListener('change', (e) => {
         const nextType = e.target.value;
         syncLevelDropdown(document.getElementById('formLevel'), nextType);
+        updateFormCommonAttributeVisibility(nextType);
         renderTypeSpecificAttributes(nextType);
         renderFormEditorContent(nextType);
     });
@@ -1351,6 +1388,7 @@ const openFormModal = (mode, questionId = null) => {
     const typeValue = currentEditingQuestion ? currentEditingQuestion.type : 'single';
     document.getElementById('formType').value = typeValue;
     syncLevelDropdown(document.getElementById('formLevel'), typeValue);
+    updateFormCommonAttributeVisibility(typeValue);
     renderTypeSpecificAttributes(typeValue);
     renderFormEditorContent(typeValue);
     setFormSidebarCollapsed(isFormSidebarCollapsed);
@@ -1617,6 +1655,38 @@ const renderTypeSpecificAttributes = (type, presetSelection = null) => {
         return;
     }
 
+    if (type === 'listenGroup') {
+        const selection = presetSelection || getListenSelection();
+        const selectedAudioType = selection.audioType || '';
+        const selectedMaterial = selection.material || '';
+        container.innerHTML = `
+            <section class="rounded-2xl border border-[var(--color-morandi)]/15 bg-gradient-to-br from-[var(--color-morandi)]/10 via-white to-[var(--color-sage)]/10 p-3 space-y-3 shadow-sm">
+                <div class="space-y-1">
+                    <p class="text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-morandi)]">聽力題組設定</p>
+                </div>
+                <div class="rounded-xl bg-white/75 px-3 py-2 text-[11px] leading-4 text-gray-500 border border-white/70 space-y-1.5">
+                    <div><span class="font-semibold text-gray-600">固定子題：</span>只有 2 題，不可新增或刪除</div>
+                    <div>第 1 題：難度三 / 推斷訊息</div>
+                    <div>第 2 題：難度四 / 歸納分析</div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">語音類型 <span class="text-red-400">*</span></label>
+                    <select id="formListenAudioType" class="w-full px-2.5 py-2 text-[13px] border border-white/70 bg-white/90 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] cursor-pointer shadow-sm">
+                        <option value="">請選擇語音類型</option>
+                        ${listenAudioTypeOptions.map(t => `<option value="${t}" ${selectedAudioType === t ? 'selected' : ''}>${t}</option>`).join('')}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">素材分類 <span class="text-red-400">*</span></label>
+                    <select id="formListenMaterial" class="w-full px-2.5 py-2 text-[13px] border border-white/70 bg-white/90 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] cursor-pointer shadow-sm">
+                        <option value="">請選擇素材分類</option>
+                        ${listenMaterialOptions.map(m => `<option value="${m}" ${selectedMaterial === m ? 'selected' : ''}>${m}</option>`).join('')}
+                    </select>
+                </div>
+            </section>`;
+        return;
+    }
+
     if (type === 'listen') {
         const selection = presetSelection || getListenSelection();
         const selectedAudioType = selection.audioType || '';
@@ -1669,6 +1739,25 @@ const renderTypeSpecificAttributes = (type, presetSelection = null) => {
 };
 
 const getFormSidebarExpandedWidth = () => (window.matchMedia('(min-width: 1024px)').matches ? 304 : 256);
+
+const updateFormCommonAttributeVisibility = (type) => {
+    const levelWrap = document.getElementById('formLevelWrap');
+    const difficultyWrap = document.getElementById('formDifficultyWrap');
+    const divider = document.getElementById('formCommonAttributeDivider');
+    const shouldShow = shouldUseCommonLevelAndDifficulty(type);
+
+    [levelWrap, difficultyWrap, divider].forEach((el) => {
+        if (!el) return;
+        el.classList.toggle('hidden', !shouldShow);
+    });
+
+    if (!shouldShow) {
+        const levelEl = document.getElementById('formLevel');
+        const difficultyEl = document.getElementById('formDifficulty');
+        if (levelEl) levelEl.value = '';
+        if (difficultyEl) difficultyEl.value = '';
+    }
+};
 
 const setFormSidebarCollapsed = (collapsed) => {
     const sidebar = document.getElementById('formSidebar');
@@ -1783,7 +1872,7 @@ const renderFormEditorContent = (type) => {
                 <p>母題包含「標題」與「文章內容」，兩者皆為必填；文章內容可附圖。子題請補上選項、答案與解析，方便後續審題與定稿。</p>
             </div>`
             : shortGroupHint;
-        renderPassageField(config.passageLabel, ['longText', 'readGroup', 'shortGroup'].includes(type), readGroupHint);
+        renderPassageField(config.passageLabel, ['longText', 'readGroup', 'shortGroup', 'listenGroup'].includes(type), readGroupHint);
     }
 
     if (config.hasStem && !typesWithStemFirst.has(type)) {
@@ -1797,14 +1886,7 @@ const renderFormEditorContent = (type) => {
                     <label class="block text-sm font-bold text-gray-700"><i class="fa-solid fa-list-ol mr-1 text-[var(--color-morandi)]"></i> 選項與答案</label>
                     <span class="text-xs text-gray-400">請勾選正確答案，可點選內容插入圖片</span>
                 </div>
-                <div class="mb-3 overflow-hidden rounded-xl border border-amber-200 bg-amber-50/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-                    <div class="flex items-center gap-3 border-l-4 border-amber-400 px-4 py-3 text-sm text-amber-900">
-                        <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-white text-xs font-bold">
-                            <i class="fa-solid fa-exclamation"></i>
-                        </span>
-                        <span class="font-medium leading-relaxed">請避免選項長短、語氣明顯差異，以免影響鑑別度</span>
-                    </div>
-                </div>
+
                 <div class="space-y-3" id="formOptionsContainer">`;
 
         optionLabels.forEach((label, i) => {
@@ -1826,17 +1908,22 @@ const renderFormEditorContent = (type) => {
     }
 
     if (config.hasSubQuestions) {
-        const subQuestions = q?.subQuestions?.length ? q.subQuestions : [getDefaultSubQuestion(config.subQuestionMode)];
+        const subQuestions = type === 'listenGroup'
+            ? getNormalizedListenGroupSubQuestions(q?.subQuestions || [])
+            : (q?.subQuestions?.length ? q.subQuestions : [getDefaultSubQuestion(config.subQuestionMode)]);
         const subQuestionLabel = config.subQuestionMode === 'freeResponse'
             ? '子題區（自由作答）'
-            : (type === 'readGroup' ? '子題區' : '子題列表');
+            : (type === 'readGroup' ? '子題區' : (type === 'listenGroup' ? '子題列表（固定 2 題）' : '子題列表'));
+        const canManageSubQuestions = type !== 'listenGroup';
         html += `
             <div>
                 <div class="flex items-center justify-between mb-3">
                     <label class="text-sm font-bold text-gray-700"><i class="fa-solid fa-layer-group mr-1 text-[var(--color-morandi)]"></i> ${subQuestionLabel}</label>
-                    <button onclick="addSubQuestion()" class="text-xs px-3 py-1.5 bg-[var(--color-morandi)] text-white rounded-md hover:bg-[#5b7a95] transition-colors cursor-pointer font-medium">
+                    ${canManageSubQuestions
+                        ? `<button onclick="addSubQuestion()" class="text-xs px-3 py-1.5 bg-[var(--color-morandi)] text-white rounded-md hover:bg-[#5b7a95] transition-colors cursor-pointer font-medium">
                         <i class="fa-solid fa-plus mr-1"></i> 新增子題
-                    </button>
+                    </button>`
+                        : `<span class="text-xs font-medium text-gray-500">固定 2 題，不可新增或刪除</span>`}
                 </div>
                 <div class="space-y-4" id="subQuestionsContainer">`;
 
@@ -1847,7 +1934,7 @@ const renderFormEditorContent = (type) => {
         html += '</div></div>';
     }
 
-    if (!['shortGroup', 'readGroup'].includes(type)) {
+    if (!['shortGroup', 'readGroup', 'listenGroup'].includes(type)) {
         const analysisContent = q?.analysis || '';
         const analysisLabel = config.analysisLabel || '解析';
         const analysisPlaceholder = config.analysisPlaceholder || '點擊此處編輯解析說明...';
@@ -1886,14 +1973,20 @@ const renderFormEditorContent = (type) => {
 
 /** 渲染子題區塊 */
 const renderSubQuestionBlock = (sq, idx, mode = 'choice', type = '') => {
+    const listenGroupConfig = type === 'listenGroup' ? getListenGroupQuestionConfig(idx) : null;
     let html = `
         <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm" data-sub-index="${idx}">
             <div class="flex items-center justify-between mb-3">
                 <span class="text-sm font-bold text-[var(--color-morandi)]" data-sub-title>第 ${idx + 1} 題</span>
-                <button data-sub-remove onclick="removeSubQuestion(${idx})" class="text-xs text-red-400 hover:text-red-600 transition-colors cursor-pointer">
+                ${type === 'listenGroup' ? '' : `<button data-sub-remove onclick="removeSubQuestion(${idx})" class="text-xs text-red-400 hover:text-red-600 transition-colors cursor-pointer">
                     <i class="fa-solid fa-trash-can mr-0.5"></i> 刪除
-                </button>
+                </button>`}
             </div>
+            ${listenGroupConfig ? `<div class="mb-3 flex flex-wrap items-center gap-2 text-xs">
+                <span class="inline-flex items-center rounded-full border border-[var(--color-morandi)]/20 bg-[var(--color-morandi)]/10 px-3 py-1 font-medium text-[var(--color-morandi)]">${listenGroupConfig.level}</span>
+                <span class="inline-flex items-center rounded-full border border-[var(--color-sage)]/20 bg-[var(--color-sage)]/10 px-3 py-1 font-medium text-[var(--color-sage)]">核心能力：${listenGroupConfig.competency}</span>
+                <span class="inline-flex items-center rounded-full border border-[var(--color-oatmeal)] bg-[var(--color-oatmeal)]/70 px-3 py-1 font-medium text-[var(--color-slate-main)]">指標：${listenGroupConfig.indicator}</span>
+            </div>` : ''}
             <div class="mb-3">
                 <label class="block text-xs font-bold text-gray-600 mb-1">題目內容 <span class="text-red-400">*</span></label>
                 <input type="text" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)]"
@@ -1934,14 +2027,7 @@ const renderSubQuestionBlock = (sq, idx, mode = 'choice', type = '') => {
                     <span class="text-xs text-gray-400">請勾選正確答案，可點選內容插入圖片</span>
                 </div>`;
         html += `
-                <div class="mb-3 overflow-hidden rounded-xl border border-amber-200 bg-amber-50/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-                    <div class="flex items-center gap-3 border-l-4 border-amber-400 px-4 py-3 text-sm text-amber-900">
-                        <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-white text-xs font-bold">
-                            <i class="fa-solid fa-exclamation"></i>
-                        </span>
-                        <span class="font-medium leading-relaxed">請避免選項長短、語氣明顯差異，以免影響鑑別度</span>
-                    </div>
-                </div>
+
                 <div class="grid grid-cols-2 gap-3">`;
         optionLabels.forEach((label, optionIndex) => {
             const optText = sq.options?.[optionIndex]?.text || '';
@@ -1962,12 +2048,16 @@ const renderSubQuestionBlock = (sq, idx, mode = 'choice', type = '') => {
                 </div>
             </div>`;
 
-        if (type === 'readGroup') {
+        if (type === 'readGroup' || type === 'listenGroup') {
+            const analysisLabel = type === 'listenGroup' ? '試題解析 <span class="text-red-400">*</span>' : '試題解析（紀錄答案理由） <span class="text-red-400">*</span>';
+            const analysisPlaceholder = type === 'listenGroup'
+                ? '請說明為什麼選這個答案，可補充關鍵聽力線索或判斷依據...'
+                : '請簡要說明正確答案的判斷依據，並簡述其他選項錯誤原因...';
             html += `
             <div>
-                <label class="block text-xs font-bold text-gray-600 mb-1">試題解析（紀錄答案理由） <span class="text-red-400">*</span></label>
-                <textarea class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] resize-none"
-                    rows="3" data-sub-analysis="${idx}" placeholder="請簡要說明正確答案的判斷依據，並簡述其他選項錯誤原因...">${escapeHtml(sq.analysis || '')}</textarea>
+                <label class="block text-xs font-bold text-gray-600 mb-1">${analysisLabel}</label>
+                <textarea class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] resize-y"
+                    rows="4" data-sub-analysis="${idx}" placeholder="${analysisPlaceholder}">${escapeHtml(sq.analysis || '')}</textarea>
             </div>`;
         }
     }
@@ -2017,7 +2107,7 @@ const addSubQuestion = () => {
     const container = document.getElementById('subQuestionsContainer');
     const type = document.getElementById('formType').value;
     const mode = getTypeConfig(type).subQuestionMode;
-    if (!container) return;
+    if (!container || type === 'listenGroup') return;
     const currentCount = container.children.length;
     container.insertAdjacentHTML('beforeend', renderSubQuestionBlock(getDefaultSubQuestion(mode), currentCount, mode, type));
     syncSubQuestionIndices();
@@ -2039,6 +2129,8 @@ const syncShortGroupIndicator = (dimensionSelect, subIndex) => {
 
 /** 刪除子題 */
 const removeSubQuestion = (idx) => {
+    const type = document.getElementById('formType')?.value;
+    if (type === 'listenGroup') return;
     const container = document.getElementById('subQuestionsContainer');
     if (!container || container.children.length <= 1) {
         Swal.fire({ icon: 'warning', title: '至少需保留一道子題', toast: true, position: 'top-end', showConfirmButton: false, timer: 1500 });
@@ -2114,7 +2206,7 @@ const collectTypeSpecificAttributes = (type) => {
         };
     }
 
-    if (type === 'listen') {
+    if (type === 'listen' || type === 'listenGroup') {
         return {
             audioType: document.getElementById('formListenAudioType')?.value || '',
             material: document.getElementById('formListenMaterial')?.value || ''
@@ -2127,9 +2219,10 @@ const collectTypeSpecificAttributes = (type) => {
 /** 從表單收集當前資料 */
 const collectFormData = () => {
     const type = document.getElementById('formType').value;
-    const level = document.getElementById('formLevel').value;
-    const difficulty = document.getElementById('formDifficulty').value;
     const config = getTypeConfig(type);
+    const useCommonLevelAndDifficulty = shouldUseCommonLevelAndDifficulty(type);
+    const level = useCommonLevelAndDifficulty ? document.getElementById('formLevel').value : '';
+    const difficulty = useCommonLevelAndDifficulty ? document.getElementById('formDifficulty').value : '';
     const data = { type, level, difficulty, attributes: collectTypeSpecificAttributes(type) };
 
     document.querySelectorAll('#formEditorArea .editable-field').forEach(el => {
@@ -2173,8 +2266,14 @@ const collectFormData = () => {
                 }));
                 const checkedRadio = block.querySelector(`input[name="subAnswer-${idx}"]:checked`);
                 subQuestion.answer = checkedRadio ? checkedRadio.value : '';
-                if (type === 'readGroup') {
+                if (type === 'readGroup' || type === 'listenGroup') {
                     subQuestion.analysis = block.querySelector(`[data-sub-analysis="${idx}"]`)?.value || '';
+                }
+                if (type === 'listenGroup') {
+                    const fixedConfig = getListenGroupQuestionConfig(idx);
+                    subQuestion.level = fixedConfig.level;
+                    subQuestion.competency = fixedConfig.competency;
+                    subQuestion.indicator = fixedConfig.indicator;
                 }
             }
 
@@ -2184,7 +2283,7 @@ const collectFormData = () => {
         data.subQuestions = [];
     }
 
-    if (['shortGroup', 'readGroup'].includes(type)) {
+    if (['shortGroup', 'readGroup', 'listenGroup'].includes(type)) {
         data.analysis = '';
     }
 
@@ -2233,7 +2332,7 @@ const handleFormSubmit = () => {
     const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
 
     // 基本驗證
-    if (!data.level || !data.difficulty) {
+    if (shouldUseCommonLevelAndDifficulty(data.type) && (!data.level || !data.difficulty)) {
         Swal.fire({ icon: 'warning', title: '請填寫完整', text: '等級與難易度為必填欄位。' });
         return;
     }
@@ -2251,6 +2350,32 @@ const handleFormSubmit = () => {
     if (data.type === 'longText' && !stripHtml(data.passage || '').trim()) {
         Swal.fire({ icon: 'warning', title: '請填寫文章內容', text: '長文題目的文章內容為必填欄位。' });
         return;
+    }
+
+    if (data.type === 'listenGroup' && (!data.attributes?.audioType || !data.attributes?.material)) {
+        Swal.fire({ icon: 'warning', title: '請補齊題目屬性', text: '聽力題組需先選擇語音類型與素材分類。' });
+        return;
+    }
+
+    if (data.type === 'listenGroup' && !stripHtml(data.passage || '').trim()) {
+        Swal.fire({ icon: 'warning', title: '請填寫語音內容', text: '聽力題組的母題需先填寫語音內容。' });
+        return;
+    }
+
+    if (data.type === 'listenGroup') {
+        const hasInvalidListenGroupSubQuestion = (data.subQuestions || []).length !== listenGroupFixedQuestionConfigs.length
+            || (data.subQuestions || []).some((subQuestion) => {
+                const hasEmptyOption = !(subQuestion.options || []).every((option) => stripHtml(option.text || '').trim());
+                return !subQuestion.stem?.trim() || hasEmptyOption || !subQuestion.answer || !subQuestion.analysis?.trim();
+            });
+        if (hasInvalidListenGroupSubQuestion) {
+            Swal.fire({
+                icon: 'warning',
+                title: '請補齊子題資料',
+                text: '聽力題組固定 2 題，每題都需要題目、完整 ABCD 選項、答案與試題解析。'
+            });
+            return;
+        }
     }
 
     if (data.type === 'readGroup' && !data.attributes?.genre) {
@@ -2591,6 +2716,14 @@ const showExamPreview = () => {
     if (data.type === 'longText' && data.attributes?.mode) {
         previewMetaTags.push(`<span class="inline-flex items-center rounded-full border border-[var(--color-terracotta)]/20 bg-[var(--color-terracotta)]/10 px-3 py-1 text-xs font-medium text-[var(--color-terracotta)]">題型：${escapeHtml(data.attributes.mode)}</span>`);
     }
+    if (data.type === 'listenGroup') {
+        if (data.attributes?.audioType) {
+            previewMetaTags.push(`<span class="inline-flex items-center rounded-full border border-[var(--color-morandi)]/20 bg-[var(--color-morandi)]/10 px-3 py-1 text-xs font-medium text-[var(--color-morandi)]">語音類型：${escapeHtml(data.attributes.audioType)}</span>`);
+        }
+        if (data.attributes?.material) {
+            previewMetaTags.push(`<span class="inline-flex items-center rounded-full border border-[var(--color-sage)]/20 bg-[var(--color-sage)]/10 px-3 py-1 text-xs font-medium text-[var(--color-sage)]">素材分類：${escapeHtml(data.attributes.material)}</span>`);
+        }
+    }
     if (data.type === 'readGroup' && data.attributes?.genre) {
         previewMetaTags.push(`<span class="inline-flex items-center rounded-full border border-[var(--color-terracotta)]/20 bg-[var(--color-terracotta)]/10 px-3 py-1 text-xs font-medium text-[var(--color-terracotta)]">文體：${escapeHtml(data.attributes.genre)}</span>`);
     }
@@ -2605,7 +2738,7 @@ const showExamPreview = () => {
         <div class="font-serif max-w-2xl mx-auto">
             <div class="text-center mb-6 pb-4 border-b-2 border-gray-800">
                 <h2 class="text-xl font-bold mb-1">全民中文檢定 - 模擬試卷</h2>
-                <p class="text-sm text-gray-500">${qTypeMap[data.type]} ・ ${data.level} ・ 難度：${diffMap[data.difficulty] || '--'}</p>
+                <p class="text-sm text-gray-500">${qTypeMap[data.type]} ・ ${getQuestionMetaLine(data)}</p>
                 ${previewMetaTags.length ? `<div class="mt-3 flex flex-wrap items-center justify-center gap-2">${previewMetaTags.join('')}</div>` : ''}
             </div>`;
 
@@ -2656,15 +2789,20 @@ const showExamPreview = () => {
                     <div class="p-3 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-gray-700 whitespace-pre-line"><span class="font-bold text-yellow-700">解析：</span>${escapeHtml(sq.analysis || '尚未填寫解析')}</div>`;
             } else {
                 html += `
+                    ${data.type === 'listenGroup' ? `<div class="mb-3 flex flex-wrap items-center gap-2 text-xs">
+                        <span class="inline-flex items-center rounded-full border border-[var(--color-morandi)]/20 bg-[var(--color-morandi)]/10 px-3 py-1 font-medium text-[var(--color-morandi)]">${escapeHtml(sq.level || getListenGroupQuestionConfig(i).level)}</span>
+                        <span class="inline-flex items-center rounded-full border border-[var(--color-sage)]/20 bg-[var(--color-sage)]/10 px-3 py-1 font-medium text-[var(--color-sage)]">核心能力：${escapeHtml(sq.competency || getListenGroupQuestionConfig(i).competency)}</span>
+                        <span class="inline-flex items-center rounded-full border border-[var(--color-oatmeal)] bg-[var(--color-oatmeal)]/70 px-3 py-1 font-medium text-[var(--color-slate-main)]">指標：${escapeHtml(sq.indicator || getListenGroupQuestionConfig(i).indicator)}</span>
+                    </div>` : ''}
                     ${renderPreviewChoiceOptions(sq.options || [], sq.answer)}
                     <div class="text-xs text-gray-500">正確答案：${sq.answer || '未設定'}</div>
-                    ${data.type === 'readGroup' ? `<div class="mt-3 p-3 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-gray-700 whitespace-pre-line"><span class="font-bold text-yellow-700">解析：</span>${escapeHtml(sq.analysis || '尚未填寫解析')}</div>` : ''}`;
+                    ${['readGroup', 'listenGroup'].includes(data.type) ? `<div class="mt-3 p-3 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-gray-700 whitespace-pre-line"><span class="font-bold text-yellow-700">解析：</span>${escapeHtml(sq.analysis || '尚未填寫解析')}</div>` : ''}`;
             }
 
             html += '</div>';
         });
 
-        if (data.analysis && !['shortGroup', 'readGroup'].includes(data.type)) {
+        if (data.analysis && !['shortGroup', 'readGroup', 'listenGroup'].includes(data.type)) {
             html += `
                 <div class="p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-gray-700">
                     <div class="font-bold text-yellow-700 mb-2">題組解析</div>
