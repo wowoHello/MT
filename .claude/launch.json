@@ -9,7 +9,6 @@
         "serve",
         "-l",
         "3000",
-        "-s",
         "D:\\jay_liu\\Desktop\\MT"
       ],
       "port": 3000

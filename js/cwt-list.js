@@ -77,6 +77,18 @@ const defaultPageSize = 12;
 const normalLevelOptions = ['初級', '中級', '中高級', '高級', '優級'];
 const listenLevelOptions = ['難度一', '難度二', '難度三', '難度四', '難度五'];
 
+// 聽力測驗：等級 → 核心能力 / 細目指標 對應
+const listenCompetencyMap = {
+    '難度一': { competency: '提取訊息', indicator: '提取對話與訊息主旨' },
+    '難度二': { competency: '理解訊息', indicator: '理解訊息意圖' },
+    '難度三': { competency: '推斷訊息', indicator: '推斷訊息邏輯性' },
+    '難度四': { competency: '歸納分析訊息', indicator: '歸納或總結訊息內容' },
+    '難度五': { competency: '統整、闡述或評鑑訊息', indicator: '摘要、條列、統整訊息' }
+};
+
+const listenAudioTypeOptions = ['對話', '情境', '陳述'];
+const listenMaterialOptions = ['生活', '教育', '職場', '專業'];
+
 const typeLevelOptions = {
     all: normalLevelOptions,
     single: ['初級', '中級', '中高級'],
@@ -464,6 +476,7 @@ let myQuestionsDb = [
             { label: 'C', text: '去公園散步' }, { label: 'D', text: '去餐廳吃飯' }
         ],
         answer: 'B', analysis: '對話中男子說「我們去超市買一些水果吧」，故答案為 B。',
+        attributes: { audioType: '對話', material: '生活' },
         createdAt: '2026-03-07 14:00', updatedAt: '2026-03-07 14:00',
         returnCount: 0, reviewComment: null, reviewerName: null, reviewStage: null, revisionReply: '',
         history: [{ time: '2026-03-07 14:00', user: '劉雅婷', action: '建立草稿', comment: '' }]
@@ -1428,6 +1441,28 @@ const getShortGroupSelection = () => {
     };
 };
 
+const getListenAttributeDefaults = () => ({
+    audioType: currentEditingQuestion?.attributes?.audioType || '',
+    material: currentEditingQuestion?.attributes?.material || ''
+});
+
+const getListenSelection = () => {
+    const defaults = getListenAttributeDefaults();
+    return {
+        audioType: document.getElementById('formListenAudioType')?.value ?? defaults.audioType,
+        material: document.getElementById('formListenMaterial')?.value ?? defaults.material
+    };
+};
+
+const syncListenCompetency = () => {
+    const level = document.getElementById('formLevel')?.value || '';
+    const mapping = listenCompetencyMap[level] || { competency: '', indicator: '' };
+    const compEl = document.getElementById('formListenCompetency');
+    const indEl = document.getElementById('formListenIndicator');
+    if (compEl) compEl.value = mapping.competency;
+    if (indEl) indEl.value = mapping.indicator;
+};
+
 const syncSingleSubtopicOptions = (topic, selectedSubtopic = '') => {
     const subtopicSelect = document.getElementById('formSingleSubtopic');
     const hintContainer = document.getElementById('singleSubtopicHint');
@@ -1582,6 +1617,54 @@ const renderTypeSpecificAttributes = (type, presetSelection = null) => {
         return;
     }
 
+    if (type === 'listen') {
+        const selection = presetSelection || getListenSelection();
+        const selectedAudioType = selection.audioType || '';
+        const selectedMaterial = selection.material || '';
+        const currentLevel = document.getElementById('formLevel')?.value || '';
+        const mapping = listenCompetencyMap[currentLevel] || { competency: '', indicator: '' };
+        container.innerHTML = `
+            <section class="rounded-2xl border border-[var(--color-morandi)]/15 bg-gradient-to-br from-[var(--color-morandi)]/10 via-white to-[var(--color-sage)]/10 p-3 space-y-3 shadow-sm">
+                <div class="space-y-1">
+                    <p class="text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-morandi)]">聽力測驗設定</p>
+                </div>
+                <div class="rounded-xl bg-white/75 px-3 py-2 text-[11px] leading-4 text-gray-500 border border-white/70">
+                    <span class="font-semibold text-gray-600">適用等級：</span>${listenLevelOptions.join(' / ')}
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">核心能力</label>
+                    <input type="text" id="formListenCompetency" value="${mapping.competency}" readonly class="w-full px-2.5 py-2 text-[13px] border border-white/70 bg-gray-100 text-gray-500 rounded-xl cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">細目指標</label>
+                    <input type="text" id="formListenIndicator" value="${mapping.indicator}" readonly class="w-full px-2.5 py-2 text-[13px] border border-white/70 bg-gray-100 text-gray-500 rounded-xl cursor-not-allowed">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">語音類型 <span class="text-red-400">*</span></label>
+                    <select id="formListenAudioType" class="w-full px-2.5 py-2 text-[13px] border border-white/70 bg-white/90 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] cursor-pointer shadow-sm">
+                        <option value="">請選擇語音類型</option>
+                        ${listenAudioTypeOptions.map(t => `<option value="${t}" ${selectedAudioType === t ? 'selected' : ''}>${t}</option>`).join('')}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">素材分類 <span class="text-red-400">*</span></label>
+                    <select id="formListenMaterial" class="w-full px-2.5 py-2 text-[13px] border border-white/70 bg-white/90 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] cursor-pointer shadow-sm">
+                        <option value="">請選擇素材分類</option>
+                        ${listenMaterialOptions.map(m => `<option value="${m}" ${selectedMaterial === m ? 'selected' : ''}>${m}</option>`).join('')}
+                    </select>
+                </div>
+            </section>`;
+
+        // 等級連動：formLevel 改變時更新核心能力與細目指標
+        const levelEl = document.getElementById('formLevel');
+        if (levelEl) {
+            levelEl._listenHandler = () => syncListenCompetency();
+            levelEl.addEventListener('change', levelEl._listenHandler);
+        }
+
+        return;
+    }
+
     container.innerHTML = '';
 };
 
@@ -1714,6 +1797,14 @@ const renderFormEditorContent = (type) => {
                     <label class="block text-sm font-bold text-gray-700"><i class="fa-solid fa-list-ol mr-1 text-[var(--color-morandi)]"></i> 選項與答案</label>
                     <span class="text-xs text-gray-400">請勾選正確答案，可點選內容插入圖片</span>
                 </div>
+                <div class="mb-3 overflow-hidden rounded-xl border border-amber-200 bg-amber-50/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                    <div class="flex items-center gap-3 border-l-4 border-amber-400 px-4 py-3 text-sm text-amber-900">
+                        <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-white text-xs font-bold">
+                            <i class="fa-solid fa-exclamation"></i>
+                        </span>
+                        <span class="font-medium leading-relaxed">請避免選項長短、語氣明顯差異，以免影響鑑別度</span>
+                    </div>
+                </div>
                 <div class="space-y-3" id="formOptionsContainer">`;
 
         optionLabels.forEach((label, i) => {
@@ -1841,6 +1932,15 @@ const renderSubQuestionBlock = (sq, idx, mode = 'choice', type = '') => {
                 <div class="flex items-center justify-between mb-2">
                     <span class="text-xs font-bold text-gray-500">選項與答案</span>
                     <span class="text-xs text-gray-400">請勾選正確答案，可點選內容插入圖片</span>
+                </div>`;
+        html += `
+                <div class="mb-3 overflow-hidden rounded-xl border border-amber-200 bg-amber-50/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                    <div class="flex items-center gap-3 border-l-4 border-amber-400 px-4 py-3 text-sm text-amber-900">
+                        <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-white text-xs font-bold">
+                            <i class="fa-solid fa-exclamation"></i>
+                        </span>
+                        <span class="font-medium leading-relaxed">請避免選項長短、語氣明顯差異，以免影響鑑別度</span>
+                    </div>
                 </div>
                 <div class="grid grid-cols-2 gap-3">`;
         optionLabels.forEach((label, optionIndex) => {
@@ -1864,14 +1964,6 @@ const renderSubQuestionBlock = (sq, idx, mode = 'choice', type = '') => {
 
         if (type === 'readGroup') {
             html += `
-            <div class="mb-3 overflow-hidden rounded-xl border border-amber-200 bg-amber-50/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
-                <div class="flex items-center gap-3 border-l-4 border-amber-400 px-4 py-3 text-sm text-amber-900">
-                    <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-white text-xs font-bold">
-                        <i class="fa-solid fa-exclamation"></i>
-                    </span>
-                    <span class="font-medium leading-relaxed">請避免選項長短、語氣明顯差異，以免影響鑑別度</span>
-                </div>
-            </div>
             <div>
                 <label class="block text-xs font-bold text-gray-600 mb-1">試題解析（紀錄答案理由） <span class="text-red-400">*</span></label>
                 <textarea class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] resize-none"
@@ -2019,6 +2111,13 @@ const collectTypeSpecificAttributes = (type) => {
             mainCategory: shortGroupMainCategory,
             subCategory: shortGroupSubCategory,
             genre: document.getElementById('formShortGroupGenre')?.value || ''
+        };
+    }
+
+    if (type === 'listen') {
+        return {
+            audioType: document.getElementById('formListenAudioType')?.value || '',
+            material: document.getElementById('formListenMaterial')?.value || ''
         };
     }
 
