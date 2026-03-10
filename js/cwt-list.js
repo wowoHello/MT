@@ -83,7 +83,7 @@ const typeLevelOptions = {
     select: normalLevelOptions,
     readGroup: normalLevelOptions,
     longText: ['初級', '中級', '中高級', '優級'],
-    shortGroup: normalLevelOptions,
+    shortGroup: ['高級', '優級'],
     listen: listenLevelOptions,
     listenGroup: listenLevelOptions
 };
@@ -100,6 +100,80 @@ const singleChoiceCategoryMap = {
 
 const singleChoiceTopics = Object.keys(singleChoiceCategoryMap);
 const longTextModeOptions = ['引導寫作', '資訊整合'];
+const shortGroupMainCategory = '文義判讀';
+const shortGroupSubCategory = '篇章辨析';
+const shortGroupGenreOptions = ['文言文', '應用文', '語體文'];
+const shortGroupDimensionMap = {
+    '條列敘述': [
+        '1-1 條列敘述人、事、物特徵與特質',
+        '1-2 條列敘述人、事、物起始原因、發生情況、結論等時空先後順序',
+        '1-3 條列敘述人、事、物的差異'
+    ],
+    '歸納統整': [
+        '2-1 歸納作者主張',
+        '2-2 歸納文章主旨',
+        '2-3 歸納共同特點'
+    ],
+    '分析推理': [
+        '3-1 分析線索',
+        '3-2 推論緣由',
+        '3-3 判斷結果',
+        '3-4 判斷詞性、主語',
+        '3-5 判斷字句的解釋、文意說明是否正確',
+        '3-6 推測行為的原因或用意、說明如何達成行為',
+        '3-7 推測寫作手法的目的',
+        '3-8 判斷文體、格律、風格'
+    ]
+};
+const shortGroupDimensionOptions = Object.keys(shortGroupDimensionMap);
+const shortGroupIndicatorDimensionMap = Object.entries(shortGroupDimensionMap).reduce((acc, [dimension, indicators]) => {
+    indicators.forEach((indicator) => {
+        acc[indicator] = dimension;
+    });
+    return acc;
+}, {});
+const shortGroupLegacyIndicatorMap = {
+    '擷取訊息': '1-1 條列敘述人、事、物特徵與特質',
+    '歸納段意': '2-2 歸納文章主旨',
+    '整合理解': '2-3 歸納共同特點',
+    '推論文意': '3-2 推論緣由',
+    '辨析修辭': '3-7 推測寫作手法的目的',
+    '觀點判讀': '2-1 歸納作者主張',
+    '情境回應': '3-3 判斷結果',
+    '觀點表述': '2-1 歸納作者主張',
+    '書寫組織': '1-2 條列敘述人、事、物起始原因、發生情況、結論等時空先後順序'
+};
+const shortGroupLegacyDimensionFallbackMap = {
+    '文本理解': '條列敘述',
+    '文意分析': '分析推理',
+    '表達應用': '歸納統整'
+};
+const getNormalizedShortGroupSelection = (subQuestion = {}) => {
+    const rawDimension = subQuestion.dimension || '';
+    const rawIndicator = subQuestion.indicator || '';
+    const directMatch = shortGroupDimensionMap[rawDimension]?.includes(rawIndicator);
+
+    if (directMatch) {
+        return {
+            selectedDimension: rawDimension,
+            indicatorOptions: shortGroupDimensionMap[rawDimension] || [],
+            selectedIndicator: rawIndicator
+        };
+    }
+
+    const normalizedIndicator = shortGroupIndicatorDimensionMap[rawIndicator]
+        ? rawIndicator
+        : (shortGroupLegacyIndicatorMap[rawIndicator] || '');
+    const selectedDimension = normalizedIndicator
+        ? shortGroupIndicatorDimensionMap[normalizedIndicator]
+        : (shortGroupLegacyDimensionFallbackMap[rawDimension] || shortGroupDimensionOptions[0]);
+    const indicatorOptions = shortGroupDimensionMap[selectedDimension] || [];
+    const selectedIndicator = indicatorOptions.includes(normalizedIndicator)
+        ? normalizedIndicator
+        : (indicatorOptions[0] || '');
+
+    return { selectedDimension, indicatorOptions, selectedIndicator };
+};
 // ===================================================================
 // Mock 資料 — 命題教師 (T1001 劉雅婷) 的配額與試題
 // ===================================================================
@@ -137,21 +211,21 @@ const qTypeConfig = {
         analysisPlaceholder: '請簡要說明長文題目的批閱說明...'
     },
     readGroup: {
-        hasStem: false,
-        stemLabel: '',
+        hasStem: true,
+        stemLabel: '標題',
         hasOptions: false,
         hasPassage: true,
-        passageLabel: '閱讀文章',
+        passageLabel: '文章內容',
         hasSubQuestions: true,
         subQuestionMode: 'choice',
         hasAudio: false
     },
     shortGroup: {
-        hasStem: false,
-        stemLabel: '',
+        hasStem: true,
+        stemLabel: '題目',
         hasOptions: false,
         hasPassage: true,
-        passageLabel: '短文內容',
+        passageLabel: '文章內容',
         hasSubQuestions: true,
         subQuestionMode: 'freeResponse',
         hasAudio: false
@@ -183,7 +257,12 @@ const getTypeConfig = (type) => qTypeConfig[type] || qTypeConfig.single;
 
 const getDefaultSubQuestion = (mode = 'choice') => (
     mode === 'freeResponse'
-        ? { stem: '', analysis: '' }
+        ? {
+            stem: '',
+            analysis: '',
+            dimension: shortGroupDimensionOptions[0],
+            indicator: shortGroupDimensionMap[shortGroupDimensionOptions[0]][0]
+        }
         : {
             stem: '',
             answer: '',
@@ -201,10 +280,15 @@ const getQuestionSearchText = (question) => {
         question.attributes?.topic,
         question.attributes?.subtopic,
         question.attributes?.mode,
+        question.attributes?.genre,
+        question.attributes?.mainCategory,
+        question.attributes?.subCategory,
         ...(question.options || []).map(option => option.text),
         ...(question.subQuestions || []).flatMap((subQuestion) => [
             subQuestion.stem,
             subQuestion.analysis,
+            subQuestion.dimension,
+            subQuestion.indicator,
             ...(subQuestion.options || []).map(option => option.text)
         ])
     ];
@@ -218,7 +302,7 @@ const getQuestionPreviewMeta = (question) => {
     if (config.hasSubQuestions) {
         if (config.subQuestionMode === 'freeResponse') {
             return {
-                stemPreview: stripHtml(question.passage || '(尚未輸入短文內容)'),
+                stemPreview: stripHtml(question.passage || '(尚未輸入文章內容)'),
                 optionPreview: '<span class="text-gray-400 text-xs">含 ' + ((question.subQuestions || []).length) + ' 道自由作答子題</span>'
             };
         }
@@ -325,7 +409,7 @@ let myQuestionsDb = [
     {
         id: 'Q-2602-M005', projectId: 'P2026-01', type: 'readGroup', level: '高級', difficulty: 'hard',
         status: 'pending',
-        stem: '',
+        stem: '〈論語・學而〉節選',
         passage: '子曰：「學而時習之，不亦說乎？有朋自遠方來，不亦樂乎？人不知而不慍，不亦君子乎？」——《論語・學而》',
         subQuestions: [
             {
@@ -334,7 +418,8 @@ let myQuestionsDb = [
                     { label: 'A', text: '學習後要時常溫習' }, { label: 'B', text: '學習需要有固定時間' },
                     { label: 'C', text: '學習只需一次就好' }, { label: 'D', text: '學習要跟隨潮流' }
                 ],
-                answer: 'A'
+                answer: 'A',
+                analysis: '文句中的「時習」強調在學習後反覆溫習，因此 A 最能貼合原意；其餘選項不是縮限成固定時段，就是偏離原句重點。'
             },
             {
                 stem: '「人不知而不慍」中的「慍」字意思最接近下列何者？',
@@ -342,11 +427,13 @@ let myQuestionsDb = [
                     { label: 'A', text: '高興' }, { label: 'B', text: '生氣' },
                     { label: 'C', text: '難過' }, { label: 'D', text: '緊張' }
                 ],
-                answer: 'B'
+                answer: 'B',
+                analysis: '依上下文可知，即使別人不了解自己，也不會因此動怒，所以「慍」最接近生氣；其餘選項與情緒方向不符。'
             }
         ],
         options: [], answer: '',
-        analysis: '此題組測驗學生對《論語》經典篇章的理解能力。',
+        analysis: '',
+        attributes: { genre: '文言文' },
         createdAt: '2026-03-05 13:00', updatedAt: '2026-03-08 15:00',
         returnCount: 0, reviewComment: null, reviewerName: null, reviewStage: null, revisionReply: '',
         history: [
@@ -382,22 +469,27 @@ let myQuestionsDb = [
         history: [{ time: '2026-03-07 14:00', user: '劉雅婷', action: '建立草稿', comment: '' }]
     },
     {
-        id: 'Q-2602-M008', projectId: 'P2026-01', type: 'shortGroup', level: '中高級', difficulty: 'medium',
+        id: 'Q-2602-M008', projectId: 'P2026-01', type: 'shortGroup', level: '高級', difficulty: 'medium',
         status: 'completed',
-        stem: '',
+        stem: '春日公園即景',
         passage: '春天來了，小鳥在枝頭歌唱，花兒在路旁綻放。孩子們在公園裡奔跑嬉戲，大人們在樹蔭下閒聊。這是一個充滿生機的季節。',
         subQuestions: [
             {
                 stem: '請根據短文內容，說明作者如何透過景物描寫呈現春天的氣氛。',
+                dimension: '歸納統整',
+                indicator: '2-2 歸納文章主旨',
                 analysis: '作答時可抓住「小鳥歌唱」、「花兒綻放」、「孩子奔跑」等具體描寫，說明作者如何藉由聲音、色彩與人物活動營造充滿活力的春日景象。'
             },
             {
                 stem: '如果你也在這座公園裡，最可能觀察到什麼畫面？請寫出你的想像並說明理由。',
+                dimension: '分析推理',
+                indicator: '3-1 分析線索',
                 analysis: '本題重點在於學生是否能延伸短文情境，提出合理的觀察與感受，並以短文中的線索支持自己的想法。'
             }
         ],
         options: [], answer: '',
         analysis: '',
+        attributes: { mainCategory: shortGroupMainCategory, subCategory: shortGroupSubCategory, genre: '語體文' },
         createdAt: '2026-03-08 09:00', updatedAt: '2026-03-09 08:00',
         returnCount: 0, reviewComment: null, reviewerName: null, reviewStage: null, revisionReply: '',
         history: [
@@ -863,7 +955,7 @@ document.getElementById('filterKeyword')?.addEventListener('input', () => {
 });
 document.getElementById('filterType')?.addEventListener('change', (e) => {
     currentPage = 1;
-    // 依題型切換等級下拉選項（一般單選題 → 初級到中高級；聽力 → 難度一到五；其他題型 → 初級到優級）
+    // 依題型切換等級下拉選項（一般單選題 → 初級到中高級；短文題組 → 高級到優級；聽力 → 難度一到五；其餘題型 → 初級到優級）
     syncLevelDropdown(document.getElementById('filterLevel'), e.target.value);
     renderTabContent();
 });
@@ -884,6 +976,7 @@ document.getElementById('pageSizeSelect')?.addEventListener('change', (e) => {
 /**
  * 依據題型切換等級下拉選項的顯示
  * 一般單選題 → 顯示「初級 / 中級 / 中高級」
+ * 短文題組 → 顯示「高級 / 優級」
  * 聽力題型 → 顯示「難度一～難度五」
  * 其他題型 → 顯示「初級～優級」
  * @param {HTMLSelectElement} levelSelect - 等級下拉元素
@@ -1309,6 +1402,32 @@ const getLongTextSelection = () => {
     };
 };
 
+const getReadGroupAttributeDefaults = () => ({
+    genre: currentEditingQuestion?.attributes?.genre || ''
+});
+
+const getReadGroupSelection = () => {
+    const defaults = getReadGroupAttributeDefaults();
+    return {
+        genre: document.getElementById('formReadGroupGenre')?.value ?? defaults.genre
+    };
+};
+
+const getShortGroupAttributeDefaults = () => ({
+    mainCategory: shortGroupMainCategory,
+    subCategory: shortGroupSubCategory,
+    genre: currentEditingQuestion?.attributes?.genre || ''
+});
+
+const getShortGroupSelection = () => {
+    const defaults = getShortGroupAttributeDefaults();
+    return {
+        mainCategory: shortGroupMainCategory,
+        subCategory: shortGroupSubCategory,
+        genre: document.getElementById('formShortGroupGenre')?.value ?? defaults.genre
+    };
+};
+
 const syncSingleSubtopicOptions = (topic, selectedSubtopic = '') => {
     const subtopicSelect = document.getElementById('formSingleSubtopic');
     const hintContainer = document.getElementById('singleSubtopicHint');
@@ -1404,6 +1523,65 @@ const renderTypeSpecificAttributes = (type, presetSelection = null) => {
         return;
     }
 
+    if (type === 'readGroup') {
+        const selection = presetSelection || getReadGroupSelection();
+        const selectedGenre = selection.genre || '';
+
+        container.innerHTML = `
+            <section class="rounded-2xl border border-[var(--color-oatmeal)] bg-gradient-to-br from-[var(--color-oatmeal)] via-white to-[var(--color-sage)]/10 p-3 space-y-3 shadow-sm">
+                <div class="space-y-1">
+                    <p class="text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-terracotta)]">閱讀題組設定</p>
+                </div>
+                <div class="rounded-xl bg-white/80 px-3 py-2 text-[11px] leading-4 text-gray-500 border border-white/70">
+                    <span class="font-semibold text-gray-600">適用等級：</span>${typeLevelOptions.readGroup.join(' / ')}
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">文體 <span class="text-red-400">*</span></label>
+                    <select id="formReadGroupGenre" class="w-full px-2.5 py-2 text-[13px] border border-white/70 bg-white/90 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--color-terracotta)] cursor-pointer shadow-sm">
+                        <option value="">請選擇文體</option>
+                        ${shortGroupGenreOptions.map((genre) => `<option value="${genre}" ${selectedGenre === genre ? 'selected' : ''}>${genre}</option>`).join('')}
+                    </select>
+                </div>
+            </section>`;
+        return;
+    }
+
+    if (type === 'shortGroup') {
+        const selection = presetSelection || getShortGroupSelection();
+        const selectedGenre = selection.genre || '';
+
+        container.innerHTML = `
+            <section class="rounded-2xl border border-[var(--color-sage)]/20 bg-gradient-to-br from-[var(--color-sage)]/10 via-white to-[var(--color-morandi)]/10 p-3 space-y-3 shadow-sm">
+                <div class="space-y-1">
+                    <p class="text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-sage)]">短文題組設定</p>
+                </div>
+                <div class="rounded-xl bg-white/80 px-3 py-2 text-[11px] leading-4 text-gray-500 border border-white/70">
+                    <span class="font-semibold text-gray-600">主類／次類：</span>${shortGroupMainCategory} / ${shortGroupSubCategory}
+                </div>
+                <div class="rounded-xl bg-white/80 px-3 py-2 text-[11px] leading-4 text-gray-500 border border-white/70">
+                    <span class="font-semibold text-gray-600">適用等級：</span>${typeLevelOptions.shortGroup.join(' / ')}
+                </div>
+                <div class="grid grid-cols-2 gap-2">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">主類</label>
+                        <input type="text" value="${shortGroupMainCategory}" disabled class="w-full px-2.5 py-2 text-[13px] border border-white/70 bg-gray-100 text-gray-500 rounded-xl cursor-not-allowed">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-700 mb-1">次類</label>
+                        <input type="text" value="${shortGroupSubCategory}" disabled class="w-full px-2.5 py-2 text-[13px] border border-white/70 bg-gray-100 text-gray-500 rounded-xl cursor-not-allowed">
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-700 mb-1">文體 <span class="text-red-400">*</span></label>
+                    <select id="formShortGroupGenre" class="w-full px-2.5 py-2 text-[13px] border border-white/70 bg-white/90 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--color-sage)] cursor-pointer shadow-sm">
+                        <option value="">請選擇文體</option>
+                        ${shortGroupGenreOptions.map((genre) => `<option value="${genre}" ${selectedGenre === genre ? 'selected' : ''}>${genre}</option>`).join('')}
+                    </select>
+                </div>
+            </section>`;
+        return;
+    }
+
     container.innerHTML = '';
 };
 
@@ -1469,11 +1647,11 @@ const renderFormEditorContent = (type) => {
             </div>`;
     }
 
-    const renderStemField = (label, placeholder = `點擊此處開始編輯${label}...`) => {
+    const renderStemField = (label, placeholder = `點擊此處開始編輯${label}...`, required = false) => {
         const stemContent = q?.stem || '';
         html += `
             <div class="space-y-3">
-                <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fa-solid fa-pen mr-1 text-[var(--color-morandi)]"></i> ${label}</label>
+                <label class="block text-sm font-bold text-gray-700 mb-2"><i class="fa-solid fa-pen mr-1 text-[var(--color-morandi)]"></i> ${label}${required ? ' <span class="text-red-400">*</span>' : ''}</label>
                 <div class="editable-field bg-white text-sm text-gray-700 leading-relaxed" data-field="stem" onclick="activateQuillField(this, 'stem', '${label}')">
                     ${stemContent || `<span class="text-gray-400 italic">${placeholder}</span>`}
                 </div>
@@ -1492,8 +1670,12 @@ const renderFormEditorContent = (type) => {
             </div>`;
     };
 
-    if (config.hasStem && type === 'longText') {
-        renderStemField(config.stemLabel, '點擊此處開始編輯題目...');
+    const typesWithStemFirst = new Set(['longText', 'readGroup', 'shortGroup']);
+
+    if (config.hasStem && typesWithStemFirst.has(type)) {
+        const requiredStemTypes = new Set(['readGroup', 'shortGroup']);
+        const placeholder = type === 'longText' ? '點擊此處開始編輯題目...' : `點擊此處開始編輯${config.stemLabel}...`;
+        renderStemField(config.stemLabel, placeholder, requiredStemTypes.has(type));
     }
 
     if (config.hasPassage) {
@@ -1504,10 +1686,24 @@ const renderFormEditorContent = (type) => {
                 <p>點擊文章內容後，可用底部編輯器工具列插入圖片，適合放題幹情境圖或資料圖表。</p>
             </div>`
             : '';
-        renderPassageField(config.passageLabel, type === 'longText', longTextPassageHint);
+        const shortGroupHint = type === 'shortGroup'
+            ? `
+            <div class="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 leading-relaxed">
+                <div class="font-bold mb-1"><i class="fa-solid fa-circle-info mr-1"></i> 短文題組母題提醒</div>
+                <p>母題包含「題目」與「文章內容」，兩者皆為必填；文章內容可附圖。子題請補上主向度與能力指標，方便後續審題判讀。</p>
+            </div>`
+            : longTextPassageHint;
+        const readGroupHint = type === 'readGroup'
+            ? `
+            <div class="rounded-xl border border-[var(--color-oatmeal)] bg-[var(--color-oatmeal)]/45 px-4 py-3 text-sm text-[var(--color-slate-main)] leading-relaxed">
+                <div class="font-bold mb-1"><i class="fa-solid fa-book-open-reader mr-1"></i> 閱讀題組母題提醒</div>
+                <p>母題包含「標題」與「文章內容」，兩者皆為必填；文章內容可附圖。子題請補上選項、答案與解析，方便後續審題與定稿。</p>
+            </div>`
+            : shortGroupHint;
+        renderPassageField(config.passageLabel, ['longText', 'readGroup', 'shortGroup'].includes(type), readGroupHint);
     }
 
-    if (config.hasStem && type !== 'longText') {
+    if (config.hasStem && !typesWithStemFirst.has(type)) {
         renderStemField(config.stemLabel);
     }
 
@@ -1540,7 +1736,9 @@ const renderFormEditorContent = (type) => {
 
     if (config.hasSubQuestions) {
         const subQuestions = q?.subQuestions?.length ? q.subQuestions : [getDefaultSubQuestion(config.subQuestionMode)];
-        const subQuestionLabel = config.subQuestionMode === 'freeResponse' ? '自由作答子題' : '子題列表';
+        const subQuestionLabel = config.subQuestionMode === 'freeResponse'
+            ? '子題區（自由作答）'
+            : (type === 'readGroup' ? '子題區' : '子題列表');
         html += `
             <div>
                 <div class="flex items-center justify-between mb-3">
@@ -1552,13 +1750,13 @@ const renderFormEditorContent = (type) => {
                 <div class="space-y-4" id="subQuestionsContainer">`;
 
         subQuestions.forEach((subQuestion, index) => {
-            html += renderSubQuestionBlock(subQuestion, index, config.subQuestionMode);
+            html += renderSubQuestionBlock(subQuestion, index, config.subQuestionMode, type);
         });
 
         html += '</div></div>';
     }
 
-    if (type !== 'shortGroup') {
+    if (!['shortGroup', 'readGroup'].includes(type)) {
         const analysisContent = q?.analysis || '';
         const analysisLabel = config.analysisLabel || '解析';
         const analysisPlaceholder = config.analysisPlaceholder || '點擊此處編輯解析說明...';
@@ -1596,7 +1794,7 @@ const renderFormEditorContent = (type) => {
 };
 
 /** 渲染子題區塊 */
-const renderSubQuestionBlock = (sq, idx, mode = 'choice') => {
+const renderSubQuestionBlock = (sq, idx, mode = 'choice', type = '') => {
     let html = `
         <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm" data-sub-index="${idx}">
             <div class="flex items-center justify-between mb-3">
@@ -1606,17 +1804,37 @@ const renderSubQuestionBlock = (sq, idx, mode = 'choice') => {
                 </button>
             </div>
             <div class="mb-3">
+                <label class="block text-xs font-bold text-gray-600 mb-1">題目內容 <span class="text-red-400">*</span></label>
                 <input type="text" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)]"
-                    data-sub-stem="${idx}" value="${escapeHtml(sq.stem || '')}" placeholder="輸入子題題幹...">
+                    data-sub-stem="${idx}" value="${escapeHtml(sq.stem || '')}" placeholder="輸入子題內容...">
             </div>`;
 
     if (mode === 'freeResponse') {
+        const { selectedDimension, indicatorOptions, selectedIndicator } = getNormalizedShortGroupSelection(sq);
+
         html += `
+            <div class="mb-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">主向度 <span class="text-red-400">*</span></label>
+                    <select data-sub-dimension="${idx}" onchange="syncShortGroupIndicator(this, ${idx})" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)]">
+                        ${shortGroupDimensionOptions.map((dimension) => `<option value="${dimension}" ${dimension === selectedDimension ? 'selected' : ''}>${dimension}</option>`).join('')}
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 mb-1">能力指標 <span class="text-red-400">*</span></label>
+                    <select data-sub-indicator="${idx}" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)]">
+                        ${indicatorOptions.map((indicator) => `<option value="${indicator}" ${indicator === selectedIndicator ? 'selected' : ''}>${indicator}</option>`).join('')}
+                    </select>
+                </div>
+            </div>
             <div class="mb-3 px-3 py-2 bg-gray-50 border border-dashed border-gray-200 rounded-lg text-sm text-gray-500 flex items-center gap-2 w-max">
                 <i class="fa-solid fa-pen-to-square"></i> 自由作答
             </div>
-            <textarea class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] resize-none"
-                rows="3" data-sub-analysis="${idx}" placeholder="輸入本子題解析...">${escapeHtml(sq.analysis || '')}</textarea>`;
+            <div>
+                <label class="block text-xs font-bold text-gray-600 mb-1">試題解析</label>
+                <textarea class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] resize-none"
+                    rows="3" data-sub-analysis="${idx}" placeholder="請簡要說明本題的評分重點或作答方向...">${escapeHtml(sq.analysis || '')}</textarea>
+            </div>`;
     } else {
         html += `
             <div class="mb-3">
@@ -1643,6 +1861,23 @@ const renderSubQuestionBlock = (sq, idx, mode = 'choice') => {
         html += `
                 </div>
             </div>`;
+
+        if (type === 'readGroup') {
+            html += `
+            <div class="mb-3 overflow-hidden rounded-xl border border-amber-200 bg-amber-50/90 shadow-[inset_0_1px_0_rgba(255,255,255,0.8)]">
+                <div class="flex items-center gap-3 border-l-4 border-amber-400 px-4 py-3 text-sm text-amber-900">
+                    <span class="inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-400 text-white text-xs font-bold">
+                        <i class="fa-solid fa-exclamation"></i>
+                    </span>
+                    <span class="font-medium leading-relaxed">請避免選項長短、語氣明顯差異，以免影響鑑別度</span>
+                </div>
+            </div>
+            <div>
+                <label class="block text-xs font-bold text-gray-600 mb-1">試題解析（紀錄答案理由） <span class="text-red-400">*</span></label>
+                <textarea class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] resize-none"
+                    rows="3" data-sub-analysis="${idx}" placeholder="請簡要說明正確答案的判斷依據，並簡述其他選項錯誤原因...">${escapeHtml(sq.analysis || '')}</textarea>
+            </div>`;
+        }
     }
 
     html += '</div>';
@@ -1663,6 +1898,13 @@ const syncSubQuestionIndices = () => {
         const analysisField = el.querySelector('[data-sub-analysis]');
         if (analysisField) {
             analysisField.setAttribute('data-sub-analysis', idx);
+        }
+
+        const isFreeResponseBlock = Boolean(el.querySelector('[data-sub-dimension]'));
+        if (isFreeResponseBlock) {
+            el.querySelector('[data-sub-dimension]')?.setAttribute('data-sub-dimension', idx);
+            el.querySelector('[data-sub-indicator]')?.setAttribute('data-sub-indicator', idx);
+            el.querySelector('[data-sub-dimension]')?.setAttribute('onchange', `syncShortGroupIndicator(this, ${idx})`);
             return;
         }
 
@@ -1685,8 +1927,22 @@ const addSubQuestion = () => {
     const mode = getTypeConfig(type).subQuestionMode;
     if (!container) return;
     const currentCount = container.children.length;
-    container.insertAdjacentHTML('beforeend', renderSubQuestionBlock(getDefaultSubQuestion(mode), currentCount, mode));
+    container.insertAdjacentHTML('beforeend', renderSubQuestionBlock(getDefaultSubQuestion(mode), currentCount, mode, type));
     syncSubQuestionIndices();
+};
+
+const syncShortGroupIndicator = (dimensionSelect, subIndex) => {
+    const indicatorSelect = document.querySelector(`[data-sub-indicator="${subIndex}"]`);
+    if (!dimensionSelect || !indicatorSelect) return;
+
+    const indicators = shortGroupDimensionMap[dimensionSelect.value] || [];
+    const fallback = indicators[0] || '';
+    const previous = indicatorSelect.value;
+
+    indicatorSelect.innerHTML = indicators
+        .map((indicator) => `<option value="${indicator}">${indicator}</option>`)
+        .join('');
+    indicatorSelect.value = indicators.includes(previous) ? previous : fallback;
 };
 
 /** 刪除子題 */
@@ -1752,6 +2008,20 @@ const collectTypeSpecificAttributes = (type) => {
         };
     }
 
+    if (type === 'readGroup') {
+        return {
+            genre: document.getElementById('formReadGroupGenre')?.value || ''
+        };
+    }
+
+    if (type === 'shortGroup') {
+        return {
+            mainCategory: shortGroupMainCategory,
+            subCategory: shortGroupSubCategory,
+            genre: document.getElementById('formShortGroupGenre')?.value || ''
+        };
+    }
+
     return {};
 };
 
@@ -1794,6 +2064,8 @@ const collectFormData = () => {
             };
 
             if (config.subQuestionMode === 'freeResponse') {
+                subQuestion.dimension = block.querySelector(`[data-sub-dimension="${idx}"]`)?.value || '';
+                subQuestion.indicator = block.querySelector(`[data-sub-indicator="${idx}"]`)?.value || '';
                 subQuestion.analysis = block.querySelector(`[data-sub-analysis="${idx}"]`)?.value || '';
             } else {
                 subQuestion.options = optionLabels.map((label, optionIndex) => ({
@@ -1802,6 +2074,9 @@ const collectFormData = () => {
                 }));
                 const checkedRadio = block.querySelector(`input[name="subAnswer-${idx}"]:checked`);
                 subQuestion.answer = checkedRadio ? checkedRadio.value : '';
+                if (type === 'readGroup') {
+                    subQuestion.analysis = block.querySelector(`[data-sub-analysis="${idx}"]`)?.value || '';
+                }
             }
 
             data.subQuestions.push(subQuestion);
@@ -1810,7 +2085,7 @@ const collectFormData = () => {
         data.subQuestions = [];
     }
 
-    if (type === 'shortGroup') {
+    if (['shortGroup', 'readGroup'].includes(type)) {
         data.analysis = '';
     }
 
@@ -1877,6 +2152,65 @@ const handleFormSubmit = () => {
     if (data.type === 'longText' && !stripHtml(data.passage || '').trim()) {
         Swal.fire({ icon: 'warning', title: '請填寫文章內容', text: '長文題目的文章內容為必填欄位。' });
         return;
+    }
+
+    if (data.type === 'readGroup' && !data.attributes?.genre) {
+        Swal.fire({ icon: 'warning', title: '請選擇文體', text: '閱讀題組需先選擇文體（文言文 / 應用文 / 語體文）。' });
+        return;
+    }
+
+    if (data.type === 'readGroup' && !stripHtml(data.stem || '').trim()) {
+        Swal.fire({ icon: 'warning', title: '請填寫標題', text: '閱讀題組的母題區需先輸入標題。' });
+        return;
+    }
+
+    if (data.type === 'readGroup' && !stripHtml(data.passage || '').trim()) {
+        Swal.fire({ icon: 'warning', title: '請填寫文章內容', text: '閱讀題組的文章內容為必填欄位。' });
+        return;
+    }
+
+    if (data.type === 'readGroup') {
+        const hasInvalidReadGroupSubQuestion = (data.subQuestions || []).some((subQuestion) => {
+            const hasEmptyOption = !(subQuestion.options || []).every((option) => stripHtml(option.text || '').trim());
+            return !subQuestion.stem?.trim() || hasEmptyOption || !subQuestion.answer || !subQuestion.analysis?.trim();
+        });
+        if (hasInvalidReadGroupSubQuestion) {
+            Swal.fire({
+                icon: 'warning',
+                title: '請補齊子題資料',
+                text: '每道子題都需要題目、完整 ABCD 選項、答案與試題解析。'
+            });
+            return;
+        }
+    }
+
+    if (data.type === 'shortGroup' && !data.attributes?.genre) {
+        Swal.fire({ icon: 'warning', title: '請選擇文體', text: '短文題組需先選擇文體（文言文 / 應用文 / 語體文）。' });
+        return;
+    }
+
+    if (data.type === 'shortGroup' && !stripHtml(data.stem || '').trim()) {
+        Swal.fire({ icon: 'warning', title: '請填寫題目', text: '短文題組的題目為必填欄位。' });
+        return;
+    }
+
+    if (data.type === 'shortGroup' && !stripHtml(data.passage || '').trim()) {
+        Swal.fire({ icon: 'warning', title: '請填寫文章內容', text: '短文題組的文章內容為必填欄位。' });
+        return;
+    }
+
+    if (data.type === 'shortGroup') {
+        const hasInvalidSubQuestion = (data.subQuestions || []).some((subQuestion) => (
+            !subQuestion.stem?.trim() || !subQuestion.dimension || !subQuestion.indicator
+        ));
+        if (hasInvalidSubQuestion) {
+            Swal.fire({
+                icon: 'warning',
+                title: '請補齊子題資料',
+                text: '每道子題都需要題目、主向度與能力指標。'
+            });
+            return;
+        }
     }
 
     if (formMode === 'revision') {
@@ -2158,6 +2492,15 @@ const showExamPreview = () => {
     if (data.type === 'longText' && data.attributes?.mode) {
         previewMetaTags.push(`<span class="inline-flex items-center rounded-full border border-[var(--color-terracotta)]/20 bg-[var(--color-terracotta)]/10 px-3 py-1 text-xs font-medium text-[var(--color-terracotta)]">題型：${escapeHtml(data.attributes.mode)}</span>`);
     }
+    if (data.type === 'readGroup' && data.attributes?.genre) {
+        previewMetaTags.push(`<span class="inline-flex items-center rounded-full border border-[var(--color-terracotta)]/20 bg-[var(--color-terracotta)]/10 px-3 py-1 text-xs font-medium text-[var(--color-terracotta)]">文體：${escapeHtml(data.attributes.genre)}</span>`);
+    }
+    if (data.type === 'shortGroup') {
+        previewMetaTags.push(`<span class="inline-flex items-center rounded-full border border-[var(--color-sage)]/20 bg-[var(--color-sage)]/10 px-3 py-1 text-xs font-medium text-[var(--color-sage)]">主類／次類：${shortGroupMainCategory} / ${shortGroupSubCategory}</span>`);
+        if (data.attributes?.genre) {
+            previewMetaTags.push(`<span class="inline-flex items-center rounded-full border border-[var(--color-morandi)]/20 bg-[var(--color-morandi)]/10 px-3 py-1 text-xs font-medium text-[var(--color-morandi)]">文體：${escapeHtml(data.attributes.genre)}</span>`);
+        }
+    }
 
     let html = `
         <div class="font-serif max-w-2xl mx-auto">
@@ -2176,8 +2519,12 @@ const showExamPreview = () => {
     }
 
     if (config.hasPassage && data.type !== 'longText') {
+        const passageHeader = data.type === 'shortGroup'
+            ? `題目：${escapeHtml(stripHtml(data.stem || '未填寫題目'))}`
+            : (data.type === 'readGroup' ? `標題：${escapeHtml(stripHtml(data.stem || '未填寫標題'))}` : '');
         html += `
             <div class="mb-6 p-5 bg-gray-50 border border-gray-200 rounded-xl text-sm leading-relaxed">
+                ${passageHeader ? `<div class="mb-3 text-sm font-bold text-gray-600">${passageHeader}</div>` : ''}
                 <div class="prose prose-sm max-w-none">${data.passage || '<p class="text-gray-400">內容尚未填寫</p>'}</div>
             </div>`;
     }
@@ -2203,17 +2550,22 @@ const showExamPreview = () => {
             if (config.subQuestionMode === 'freeResponse') {
                 html += `
                     <div class="mb-3 p-3 border border-dashed border-gray-300 rounded-lg text-sm text-gray-500">本題為自由作答，請依題意作答。</div>
+                    <div class="mb-3 flex flex-wrap items-center gap-2 text-xs">
+                        <span class="inline-flex items-center rounded-full border border-[var(--color-morandi)]/20 bg-[var(--color-morandi)]/10 px-3 py-1 font-medium text-[var(--color-morandi)]">主向度：${escapeHtml(sq.dimension || '未設定')}</span>
+                        <span class="inline-flex items-center rounded-full border border-[var(--color-sage)]/20 bg-[var(--color-sage)]/10 px-3 py-1 font-medium text-[var(--color-sage)]">能力指標：${escapeHtml(sq.indicator || '未設定')}</span>
+                    </div>
                     <div class="p-3 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-gray-700 whitespace-pre-line"><span class="font-bold text-yellow-700">解析：</span>${escapeHtml(sq.analysis || '尚未填寫解析')}</div>`;
             } else {
                 html += `
                     ${renderPreviewChoiceOptions(sq.options || [], sq.answer)}
-                    <div class="text-xs text-gray-500">正確答案：${sq.answer || '未設定'}</div>`;
+                    <div class="text-xs text-gray-500">正確答案：${sq.answer || '未設定'}</div>
+                    ${data.type === 'readGroup' ? `<div class="mt-3 p-3 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-gray-700 whitespace-pre-line"><span class="font-bold text-yellow-700">解析：</span>${escapeHtml(sq.analysis || '尚未填寫解析')}</div>` : ''}`;
             }
 
             html += '</div>';
         });
 
-        if (data.analysis && data.type !== 'shortGroup') {
+        if (data.analysis && !['shortGroup', 'readGroup'].includes(data.type)) {
             html += `
                 <div class="p-4 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-gray-700">
                     <div class="font-bold text-yellow-700 mb-2">題組解析</div>
