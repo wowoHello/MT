@@ -57,18 +57,18 @@ const revisionEditingStatuses = ['peer_editing', 'expert_editing', 'final_editin
 const tabStatusFilterOptions = {
     compose: [
         { value: 'all', label: '所有狀態' },
-        { value: 'draft', label: '草稿' },
+        { value: 'draft', label: '命題草稿' },
         { value: 'completed', label: '命題完成' },
         { value: 'pending', label: '已送審' }
     ],
     revision: [
         { value: 'all', label: '所有狀態' },
-        { value: 'reviewing', label: '鎖定審查中' },
-        { value: 'editing', label: '需修題' }
+        { value: 'reviewing', label: '審題鎖定' },
+        { value: 'editing', label: '修題中' }
     ],
     history: [
         { value: 'all', label: '所有狀態' },
-        { value: 'adopted', label: '採用' },
+        { value: 'adopted', label: '已採用' },
         { value: 'rejected', label: '不採用' }
     ]
 };
@@ -731,6 +731,21 @@ let isFormSidebarCollapsed = false; // 左側題目屬性欄是否收合
 let quillCloseTimer = null;       // Quill 抽屜收合動畫計時器
 let currentPage = 1;              // 列表目前頁碼
 let pageSize = defaultPageSize;   // 每頁顯示筆數
+const quillFontOptions = [
+    { value: 'dfkai-sb', label: '標楷體' },
+    { value: 'times-new-roman', label: 'Times New Roman' }
+];
+const registerQuillFormats = () => {
+    const Font = Quill.import('formats/font');
+    Font.whitelist = quillFontOptions.map((option) => option.value);
+    Quill.register(Font, true);
+};
+const getQuillCharacterCount = (text = '') => Array.from((text || '').replace(/\s/g, '')).length;
+const updateQuillWordCount = () => {
+    const counter = document.getElementById('quillWordCount');
+    if (!counter || !quillInstance) return;
+    counter.textContent = `字數：${getQuillCharacterCount(quillInstance.getText())}`;
+};
 
 
 // ===================================================================
@@ -869,9 +884,6 @@ const renderTabContent = () => {
     document.getElementById('tabCountRevision').textContent = revisionQ.length;
     document.getElementById('tabCountHistory').textContent = historyQ.length;
 
-    // 渲染統計卡片
-    renderTabStats(composeQ, revisionQ, historyQ);
-
     // 根據當前 Tab 篩選題目
     let currentQuestions = [];
     if (currentTab === 'compose') currentQuestions = composeQ;
@@ -879,6 +891,7 @@ const renderTabContent = () => {
     else currentQuestions = historyQ;
 
     renderStatusFilterOptions();
+    renderTabStats(applyFiltersWithoutStatus(currentQuestions));
     const pageSizeSelect = document.getElementById('pageSizeSelect');
     if (pageSizeSelect) {
         pageSizeSelect.value = String(pageSize);
@@ -895,87 +908,103 @@ const renderTabContent = () => {
     renderQuestionList();
 };
 
-/** 渲染各 Tab 的統計卡片 */
-const renderTabStats = (composeQ, revisionQ, historyQ) => {
-    const container = document.getElementById('tabStatsContainer');
-    let html = '';
-
+const getTabStatsCards = (questions) => {
     if (currentTab === 'compose') {
-        const draft = composeQ.filter(q => q.status === 'draft').length;
-        const completed = composeQ.filter(q => q.status === 'completed').length;
-        const pending = composeQ.filter(q => q.status === 'pending').length;
-        html = `
-            <div class="flex flex-wrap gap-3">
-                <div class="flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
-                    <span class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
-                    <span class="text-sm text-gray-600">草稿</span>
-                    <span class="text-lg font-bold text-gray-700">${draft}</span>
-                </div>
-                <div class="flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
-                    <span class="w-2.5 h-2.5 rounded-full bg-blue-500"></span>
-                    <span class="text-sm text-gray-600">命題完成</span>
-                    <span class="text-lg font-bold text-blue-700">${completed}</span>
-                </div>
-                <div class="flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
-                    <span class="w-2.5 h-2.5 rounded-full bg-yellow-500"></span>
-                    <span class="text-sm text-gray-600">已送審</span>
-                    <span class="text-lg font-bold text-yellow-700">${pending}</span>
-                </div>
-            </div>`;
-    } else if (currentTab === 'revision') {
-        const reviewing = revisionQ.filter(q => q.status.endsWith('_reviewing')).length;
-        const editing = revisionQ.filter(q => q.status.endsWith('_editing')).length;
-        html = `
-            <div class="flex flex-wrap gap-3">
-                <div class="flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
-                    <span class="w-2.5 h-2.5 rounded-full bg-blue-500 animate-pulse"></span>
-                    <span class="text-sm text-gray-600">鎖定審查中</span>
-                    <span class="text-lg font-bold text-blue-700">${reviewing}</span>
-                </div>
-                <div class="flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-amber-300 shadow-sm bg-amber-50">
-                    <span class="w-2.5 h-2.5 rounded-full bg-[var(--color-terracotta)]"></span>
-                    <span class="text-sm text-amber-700 font-medium">需修題</span>
-                    <span class="text-lg font-bold text-[var(--color-terracotta)]">${editing}</span>
-                </div>
-            </div>`;
-    } else {
-        const adopted = historyQ.filter(q => q.status === 'adopted').length;
-        const rejected = historyQ.filter(q => q.status === 'rejected').length;
-        html = `
-            <div class="flex flex-wrap gap-3">
-                <div class="flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-emerald-200 shadow-sm">
-                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
-                    <span class="text-sm text-gray-600">已採用</span>
-                    <span class="text-lg font-bold text-emerald-700">${adopted}</span>
-                </div>
-                <div class="flex items-center gap-2 px-4 py-2 bg-white rounded-lg border border-gray-200 shadow-sm">
-                    <span class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
-                    <span class="text-sm text-gray-600">不採用</span>
-                    <span class="text-lg font-bold text-gray-500">${rejected}</span>
-                </div>
-            </div>`;
+        return [
+            { value: 'all', title: '命題總計', count: questions.length, tone: 'slate' },
+            { value: 'draft', title: '命題草稿', count: questions.filter(q => q.status === 'draft').length, tone: 'gray' },
+            { value: 'completed', title: '命題完成', count: questions.filter(q => q.status === 'completed').length, tone: 'blue' },
+            { value: 'pending', title: '已送審', count: questions.filter(q => q.status === 'pending').length, tone: 'amber' }
+        ];
     }
 
-    container.innerHTML = html;
+    if (currentTab === 'revision') {
+        return [
+            { value: 'all', title: '審題總計', count: questions.length, tone: 'slate' },
+            { value: 'reviewing', title: '審題鎖定', count: questions.filter(q => revisionReviewingStatuses.includes(q.status)).length, tone: 'blue' },
+            { value: 'editing', title: '修題中', count: questions.filter(q => revisionEditingStatuses.includes(q.status)).length, tone: 'amber' }
+        ];
+    }
+
+    return [
+        { value: 'all', title: '全部題目', count: questions.length, tone: 'slate' },
+        { value: 'adopted', title: '已採用', count: questions.filter(q => q.status === 'adopted').length, tone: 'emerald' },
+        { value: 'rejected', title: '不採用', count: questions.filter(q => q.status === 'rejected').length, tone: 'gray' }
+    ];
+};
+
+const getStatsCardToneClass = (tone, isActive) => {
+    const toneMap = {
+        slate: isActive ? 'border-slate-400 bg-slate-50' : 'border-gray-200 bg-white',
+        gray: isActive ? 'border-gray-400 bg-gray-50' : 'border-gray-200 bg-white',
+        blue: isActive ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-white',
+        amber: isActive ? 'border-amber-400 bg-amber-50' : 'border-gray-200 bg-white',
+        emerald: isActive ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 bg-white'
+    };
+    return toneMap[tone] || toneMap.slate;
+};
+
+const renderStatsCard = (card, activeFilter) => {
+    const isActive = activeFilter === card.value || (card.value === 'all' && activeFilter === 'all');
+    return `
+        <button type="button" data-status-filter="${card.value}" class="min-w-[150px] flex-1 cursor-pointer rounded-xl border px-4 py-3 text-left transition-colors ${getStatsCardToneClass(card.tone, isActive)} ${isActive ? 'shadow-sm' : ''}">
+            <div class="text-sm font-bold text-gray-700">${card.title}</div>
+            <div class="mt-3 text-3xl font-bold text-gray-900">${card.count}</div>
+            <div class="mt-2 text-xs ${isActive ? 'text-gray-600' : 'text-gray-400'}">${card.value === 'all' ? '顯示全部題目' : '點一下套用篩選'}</div>
+        </button>`;
+};
+
+/** 渲染各 Tab 的統計卡片 */
+const renderTabStats = (questions) => {
+    const container = document.getElementById('tabStatsContainer');
+    if (!container) return;
+
+    const cards = getTabStatsCards(questions);
+    const activeFilter = getStatusFilterValue();
+    container.innerHTML = `
+        <div class="flex flex-wrap gap-3">
+            ${cards.map((card) => renderStatsCard(card, activeFilter)).join('')}
+        </div>`;
 };
 
 
 // ===================================================================
 // 篩選與排序
 // ===================================================================
-const applyFilters = (questions) => {
+const getStatusFilterValue = () => document.getElementById('filterStatus')?.value || 'all';
+
+const applyFiltersWithoutStatus = (questions) => {
     const keyword = document.getElementById('filterKeyword').value.trim().toLowerCase();
     const typeVal = document.getElementById('filterType').value;
     const levelVal = document.getElementById('filterLevel').value;
-    const statusVal = document.getElementById('filterStatus')?.value || 'all';
 
     return questions.filter(q => {
         if (keyword && !getQuestionSearchText(q).includes(keyword)) return false;
         if (typeVal !== 'all' && q.type !== typeVal) return false;
         if (levelVal !== 'all' && q.level !== levelVal) return false;
+        return true;
+    });
+};
+
+const applyFilters = (questions) => {
+    const statusVal = getStatusFilterValue();
+    return applyFiltersWithoutStatus(questions).filter(q => {
         if (!matchesStatusFilter(q, statusVal)) return false;
         return true;
     });
+};
+
+const setStatusFilter = (statusValue = 'all') => {
+    const statusSelect = document.getElementById('filterStatus');
+    if (!statusSelect) return;
+
+    const nextValue = Array.from(statusSelect.options).some((option) => option.value === statusValue)
+        ? statusValue
+        : 'all';
+
+    statusSelect.value = nextValue;
+    currentPage = 1;
+    renderTabContent();
 };
 
 const sortQuestions = (questions) => {
@@ -1015,6 +1044,11 @@ document.getElementById('filterLevel')?.addEventListener('change', () => {
 document.getElementById('filterStatus')?.addEventListener('change', () => {
     currentPage = 1;
     renderTabContent();
+});
+document.getElementById('tabStatsContainer')?.addEventListener('click', (e) => {
+    const trigger = e.target.closest('[data-status-filter]');
+    if (!trigger) return;
+    setStatusFilter(trigger.getAttribute('data-status-filter') || 'all');
 });
 document.getElementById('pageSizeSelect')?.addEventListener('change', (e) => {
     pageSize = Number(e.target.value) || defaultPageSize;
@@ -1862,9 +1896,9 @@ const renderFormEditorContent = (type) => {
     };
 
     const typesWithStemFirst = new Set(['longText', 'readGroup', 'shortGroup']);
+    const requiredStemTypes = new Set(['readGroup', 'shortGroup']);
 
     if (config.hasStem && typesWithStemFirst.has(type)) {
-        const requiredStemTypes = new Set(['readGroup', 'shortGroup']);
         const placeholder = type === 'longText' ? '點擊此處開始編輯題目...' : `點擊此處開始編輯${config.stemLabel}...`;
         renderStemField(config.stemLabel, placeholder, requiredStemTypes.has(type));
     }
@@ -1886,9 +1920,9 @@ const renderFormEditorContent = (type) => {
             : longTextPassageHint;
         const readGroupHint = type === 'readGroup'
             ? `
-            <div class="rounded-xl border border-[var(--color-oatmeal)] bg-[var(--color-oatmeal)]/45 px-4 py-3 text-sm text-[var(--color-slate-main)] leading-relaxed">
-                <div class="font-bold mb-1"><i class="fa-solid fa-book-open-reader mr-1"></i> 閱讀題組母題提醒</div>
-                <p>母題包含「標題」與「文章內容」，兩者皆為必填；文章內容可附圖。子題請補上選項、答案與解析，方便後續審題與定稿。</p>
+            <div class="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm text-amber-800 leading-relaxed">
+                <div class="font-bold mb-1"><i class="fa-solid fa-circle-info mr-1"></i> 閱讀題組母題提醒</div>
+                <p>母題包含「標題」與「文章內容」，兩者皆為必填；文章內容可附圖。子題再補上選項、答案與解析即可。</p>
             </div>`
             : shortGroupHint;
         renderPassageField(config.passageLabel, ['longText', 'readGroup', 'shortGroup', 'listenGroup'].includes(type), readGroupHint);
@@ -1899,13 +1933,18 @@ const renderFormEditorContent = (type) => {
     }
 
     if (config.hasOptions) {
+        const optionWritingHint = `
+            <div class="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 leading-relaxed flex items-start gap-3">
+                <i class="fa-solid fa-circle-exclamation mt-0.5"></i>
+                <p>請避免選項長短、語氣明顯差異，以免影響鑑別度。</p>
+            </div>`;
         html += `
             <div>
                 <div class="flex items-center justify-between mb-2">
                     <label class="block text-sm font-bold text-gray-700"><i class="fa-solid fa-list-ol mr-1 text-[var(--color-morandi)]"></i> 選項與答案</label>
                     <span class="text-xs text-gray-400">請勾選正確答案，可點選內容插入圖片</span>
                 </div>
-
+                ${optionWritingHint}
                 <div class="space-y-3" id="formOptionsContainer">`;
 
         optionLabels.forEach((label, i) => {
@@ -1993,11 +2032,14 @@ const renderFormEditorContent = (type) => {
 /** 渲染子題區塊 */
 const renderSubQuestionBlock = (sq, idx, mode = 'choice', type = '') => {
     const listenGroupConfig = type === 'listenGroup' ? getListenGroupQuestionConfig(idx) : null;
+    const isReadGroup = type === 'readGroup';
+    const isListenGroup = type === 'listenGroup';
+    const stemContent = sq.stem || '';
     let html = `
         <div class="bg-white border border-gray-200 rounded-xl p-4 shadow-sm" data-sub-index="${idx}">
             <div class="flex items-center justify-between mb-3">
                 <span class="text-sm font-bold text-[var(--color-morandi)]" data-sub-title>第 ${idx + 1} 題</span>
-                ${type === 'listenGroup' ? '' : `<button data-sub-remove onclick="removeSubQuestion(${idx})" class="text-xs text-red-400 hover:text-red-600 transition-colors cursor-pointer">
+                ${isListenGroup ? '' : `<button data-sub-remove onclick="removeSubQuestion(${idx})" class="text-xs text-red-400 hover:text-red-600 transition-colors cursor-pointer">
                     <i class="fa-solid fa-trash-can mr-0.5"></i> 刪除
                 </button>`}
             </div>
@@ -2006,10 +2048,14 @@ const renderSubQuestionBlock = (sq, idx, mode = 'choice', type = '') => {
                 <span class="inline-flex items-center rounded-full border border-[var(--color-sage)]/20 bg-[var(--color-sage)]/10 px-3 py-1 font-medium text-[var(--color-sage)]">核心能力：${listenGroupConfig.competency}</span>
                 <span class="inline-flex items-center rounded-full border border-[var(--color-oatmeal)] bg-[var(--color-oatmeal)]/70 px-3 py-1 font-medium text-[var(--color-slate-main)]">指標：${listenGroupConfig.indicator}</span>
             </div>` : ''}
-            <div class="mb-3">
-                <label class="block text-xs font-bold text-gray-600 mb-1">題目內容 <span class="text-red-400">*</span></label>
-                <input type="text" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)]"
-                    data-sub-stem="${idx}" value="${escapeHtml(sq.stem || '')}" placeholder="輸入子題內容...">
+            <div class="mb-3 space-y-2">
+                <label class="block text-xs font-bold text-gray-600">題目內容 <span class="text-red-400">*</span></label>
+                ${isReadGroup
+                    ? `<div class="editable-field bg-white text-sm text-gray-700 leading-relaxed min-h-[92px]" data-sub-stem="${idx}" onclick="activateQuillField(this, 'subStem-${idx}', '第 ${idx + 1} 題題目內容')">
+                        ${stemContent || '<span class="text-gray-400 italic">點擊此處開始編輯題目內容，可插入圖片...</span>'}
+                    </div>`
+                    : `<input type="text" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)]"
+                    data-sub-stem="${idx}" value="${escapeHtml(sq.stem || '')}" placeholder="輸入子題內容...">`}
             </div>`;
 
     if (mode === 'freeResponse') {
@@ -2039,14 +2085,20 @@ const renderSubQuestionBlock = (sq, idx, mode = 'choice', type = '') => {
                     rows="3" data-sub-analysis="${idx}" placeholder="請簡要說明本題的評分重點或作答方向...">${escapeHtml(sq.analysis || '')}</textarea>
             </div>`;
     } else {
+        const choiceOptionHint = (isReadGroup || isListenGroup)
+            ? `
+                <div class="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 leading-relaxed flex items-start gap-3">
+                    <i class="fa-solid fa-circle-exclamation mt-0.5"></i>
+                    <p>請避免選項長短、語氣明顯差異，以免影響鑑別度。</p>
+                </div>`
+            : '';
         html += `
             <div class="mb-3">
                 <div class="flex items-center justify-between mb-2">
                     <span class="text-xs font-bold text-gray-500">選項與答案</span>
                     <span class="text-xs text-gray-400">請勾選正確答案，可點選內容插入圖片</span>
-                </div>`;
-        html += `
-
+                </div>
+                ${choiceOptionHint}
                 <div class="grid grid-cols-2 gap-3">`;
         optionLabels.forEach((label, optionIndex) => {
             const optText = sq.options?.[optionIndex]?.text || '';
@@ -2067,12 +2119,20 @@ const renderSubQuestionBlock = (sq, idx, mode = 'choice', type = '') => {
                 </div>
             </div>`;
 
-        if (type === 'readGroup' || type === 'listenGroup') {
-            const analysisLabel = type === 'listenGroup' ? '試題解析 <span class="text-red-400">*</span>' : '試題解析（紀錄答案理由） <span class="text-red-400">*</span>';
-            const analysisPlaceholder = type === 'listenGroup'
+        if (isReadGroup || isListenGroup) {
+            const analysisLabel = isListenGroup ? '試題解析 <span class="text-red-400">*</span>' : '試題解析（紀錄答案理由） <span class="text-red-400">*</span>';
+            const analysisPlaceholder = isListenGroup
                 ? '請說明為什麼選這個答案，可補充關鍵聽力線索或判斷依據...'
-                : '請簡要說明正確答案的判斷依據，並簡述其他選項錯誤原因...';
-            html += `
+                : '點擊此處開始編輯解析，可說明正確答案依據與其他選項錯誤原因...';
+            html += isReadGroup
+                ? `
+            <div class="space-y-2">
+                <label class="block text-xs font-bold text-gray-600">${analysisLabel}</label>
+                <div class="editable-field bg-white text-sm text-gray-700 leading-relaxed min-h-[120px]" data-sub-analysis="${idx}" onclick="activateQuillField(this, 'subAnalysis-${idx}', '第 ${idx + 1} 題試題解析')">
+                    ${sq.analysis || `<span class="text-gray-400 italic">${analysisPlaceholder}</span>`}
+                </div>
+            </div>`
+                : `
             <div>
                 <label class="block text-xs font-bold text-gray-600 mb-1">${analysisLabel}</label>
                 <textarea class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] resize-y"
@@ -2094,11 +2154,21 @@ const syncSubQuestionIndices = () => {
         const titleEl = el.querySelector('[data-sub-title]');
         if (titleEl) titleEl.textContent = `第 ${idx + 1} 題`;
         el.querySelector('[data-sub-remove]')?.setAttribute('onclick', `removeSubQuestion(${idx})`);
-        el.querySelector('[data-sub-stem]')?.setAttribute('data-sub-stem', idx);
+
+        const stemField = el.querySelector('[data-sub-stem]');
+        if (stemField) {
+            stemField.setAttribute('data-sub-stem', idx);
+            if (stemField.classList.contains('editable-field')) {
+                stemField.setAttribute('onclick', `activateQuillField(this, 'subStem-${idx}', '第 ${idx + 1} 題題目內容')`);
+            }
+        }
 
         const analysisField = el.querySelector('[data-sub-analysis]');
         if (analysisField) {
             analysisField.setAttribute('data-sub-analysis', idx);
+            if (analysisField.classList.contains('editable-field')) {
+                analysisField.setAttribute('onclick', `activateQuillField(this, 'subAnalysis-${idx}', '第 ${idx + 1} 題試題解析')`);
+            }
         }
 
         const isFreeResponseBlock = Boolean(el.querySelector('[data-sub-dimension]'));
@@ -2235,6 +2305,31 @@ const collectTypeSpecificAttributes = (type) => {
     return {};
 };
 
+/** 判斷 Quill HTML 是否真的有內容 */
+const hasMeaningfulHtmlContent = (html = '') => {
+    const normalizedHtml = html || '';
+    return Boolean(stripHtml(normalizedHtml).trim() || /<img[\s>]/i.test(normalizedHtml));
+};
+
+/** 取得表單欄位內容 */
+const getFormControlContent = (element) => {
+    if (!element) return '';
+
+    if (element.classList?.contains('editable-field')) {
+        if (element.querySelector('.text-gray-400.italic')) {
+            return '';
+        }
+        const html = element.innerHTML || '';
+        return hasMeaningfulHtmlContent(html) ? html : '';
+    }
+
+    if (typeof element.value === 'string') {
+        return element.value || '';
+    }
+
+    return '';
+};
+
 /** 從表單收集當前資料 */
 const collectFormData = () => {
     const type = document.getElementById('formType').value;
@@ -2244,9 +2339,9 @@ const collectFormData = () => {
     const difficulty = useCommonLevelAndDifficulty ? document.getElementById('formDifficulty').value : '';
     const data = { type, level, difficulty, attributes: collectTypeSpecificAttributes(type) };
 
-    document.querySelectorAll('#formEditorArea .editable-field').forEach(el => {
+    document.querySelectorAll('#formEditorArea .editable-field[data-field]').forEach((el) => {
         const field = el.getAttribute('data-field');
-        if (field) data[field] = el.innerHTML;
+        if (field) data[field] = getFormControlContent(el);
     });
 
     if (!config.hasPassage) data.passage = '';
@@ -2254,10 +2349,10 @@ const collectFormData = () => {
 
     if (config.hasOptions) {
         data.options = [];
-        document.querySelectorAll('#formOptionsContainer .editable-field[data-option-index]').forEach(input => {
+        document.querySelectorAll('#formOptionsContainer .editable-field[data-option-index]').forEach((input) => {
             data.options.push({
                 label: input.getAttribute('data-option-label'),
-                text: input.innerHTML
+                text: getFormControlContent(input)
             });
         });
         const checkedRadio = document.querySelector('input[name="formAnswer"]:checked');
@@ -2271,22 +2366,22 @@ const collectFormData = () => {
         data.subQuestions = [];
         document.querySelectorAll('#subQuestionsContainer > div').forEach((block, idx) => {
             const subQuestion = {
-                stem: block.querySelector(`[data-sub-stem="${idx}"]`)?.value || ''
+                stem: getFormControlContent(block.querySelector(`[data-sub-stem="${idx}"]`))
             };
 
             if (config.subQuestionMode === 'freeResponse') {
                 subQuestion.dimension = block.querySelector(`[data-sub-dimension="${idx}"]`)?.value || '';
                 subQuestion.indicator = block.querySelector(`[data-sub-indicator="${idx}"]`)?.value || '';
-                subQuestion.analysis = block.querySelector(`[data-sub-analysis="${idx}"]`)?.value || '';
+                subQuestion.analysis = getFormControlContent(block.querySelector(`[data-sub-analysis="${idx}"]`));
             } else {
                 subQuestion.options = optionLabels.map((label, optionIndex) => ({
                     label,
-                    text: block.querySelector(`[data-sub-option="${idx}-${optionIndex}"]`)?.innerHTML || ''
+                    text: getFormControlContent(block.querySelector(`[data-sub-option="${idx}-${optionIndex}"]`))
                 }));
                 const checkedRadio = block.querySelector(`input[name="subAnswer-${idx}"]:checked`);
                 subQuestion.answer = checkedRadio ? checkedRadio.value : '';
                 if (type === 'readGroup' || type === 'listenGroup') {
-                    subQuestion.analysis = block.querySelector(`[data-sub-analysis="${idx}"]`)?.value || '';
+                    subQuestion.analysis = getFormControlContent(block.querySelector(`[data-sub-analysis="${idx}"]`));
                 }
                 if (type === 'listenGroup') {
                     const fixedConfig = getListenGroupQuestionConfig(idx);
@@ -2384,7 +2479,7 @@ const handleFormSubmit = () => {
     if (data.type === 'listenGroup') {
         const hasInvalidListenGroupSubQuestion = (data.subQuestions || []).length !== listenGroupFixedQuestionConfigs.length
             || (data.subQuestions || []).some((subQuestion) => {
-                const hasEmptyOption = !(subQuestion.options || []).every((option) => stripHtml(option.text || '').trim());
+                const hasEmptyOption = !(subQuestion.options || []).every((option) => hasMeaningfulHtmlContent(option.text || ''));
                 return !subQuestion.stem?.trim() || hasEmptyOption || !subQuestion.answer || !subQuestion.analysis?.trim();
             });
         if (hasInvalidListenGroupSubQuestion) {
@@ -2414,8 +2509,8 @@ const handleFormSubmit = () => {
 
     if (data.type === 'readGroup') {
         const hasInvalidReadGroupSubQuestion = (data.subQuestions || []).some((subQuestion) => {
-            const hasEmptyOption = !(subQuestion.options || []).every((option) => stripHtml(option.text || '').trim());
-            return !subQuestion.stem?.trim() || hasEmptyOption || !subQuestion.answer || !subQuestion.analysis?.trim();
+            const hasEmptyOption = !(subQuestion.options || []).every((option) => hasMeaningfulHtmlContent(option.text || ''));
+            return !hasMeaningfulHtmlContent(subQuestion.stem || '') || hasEmptyOption || !subQuestion.answer || !hasMeaningfulHtmlContent(subQuestion.analysis || '');
         });
         if (hasInvalidReadGroupSubQuestion) {
             Swal.fire({
@@ -2444,7 +2539,7 @@ const handleFormSubmit = () => {
 
     if (data.type === 'shortGroup') {
         const hasInvalidSubQuestion = (data.subQuestions || []).some((subQuestion) => (
-            !subQuestion.stem?.trim() || !subQuestion.dimension || !subQuestion.indicator
+            !stripHtml(subQuestion.stem || '').trim() || !subQuestion.dimension || !subQuestion.indicator
         ));
         if (hasInvalidSubQuestion) {
             Swal.fire({
@@ -2561,18 +2656,20 @@ const submitQuestion = (questionId) => {
 // Quill 底部滑入式編輯器
 // ===================================================================
 const initQuillEditor = () => {
+    registerQuillFormats();
+
     quillInstance = new Quill('#quillEditorContainer', {
         theme: 'snow',
         placeholder: '在此輸入內容...',
         modules: {
             toolbar: {
                 container: [
-                    ['bold', 'italic', 'underline', 'strike'],
-                    [{ 'header': [1, 2, 3, false] }],
-                    [{ 'list': 'ordered' }, { 'list': 'bullet' }],
-                    ['blockquote'],
-                    ['image'],   // 圖片上傳按鈕
-                    ['clean']
+                    [{ 'size': ['small', false, 'large'] }, { 'header': [2, 3, false] }, { 'font': quillFontOptions.map((option) => option.value) }],
+                    [{ 'color': [] }, { 'background': [] }, { 'align': [] }],
+                    ['bold', 'underline', 'strike', 'link'],
+                    [{ 'list': 'ordered' }, { 'list': 'bullet' }, { 'indent': '-1' }, { 'indent': '+1' }],
+                    [{ 'script': 'sub' }, { 'script': 'super' }],
+                    ['image', 'clean']
                 ],
                 handlers: {
                     /** 自訂圖片上傳：觸發 file input 讀取為 Base64 嵌入 */
@@ -2603,6 +2700,8 @@ const initQuillEditor = () => {
         }
     });
 
+    updateQuillWordCount();
+
     // 中文標點按鈕事件（含括弧配對插入邏輯）
     document.querySelectorAll('.punct-btn').forEach(btn => {
         btn.addEventListener('click', () => {
@@ -2631,6 +2730,7 @@ const initQuillEditor = () => {
             const html = quillInstance.root.innerHTML;
             activeEditableField.innerHTML = html;
         }
+        updateQuillWordCount();
     });
 };
 
@@ -2655,8 +2755,9 @@ const activateQuillField = (element, fieldKey, label) => {
     const isPlaceholder = element.querySelector('.text-gray-400.italic');
     quillInstance.root.innerHTML = isPlaceholder ? '' : currentHtml;
 
-    // 更新標籤
+    // 更新標籤與字數
     document.getElementById('quillTargetLabel').textContent = label;
+    updateQuillWordCount();
 
     // 滑出編輯器
     const panel = document.getElementById('quillPanel');
@@ -2670,6 +2771,12 @@ const activateQuillField = (element, fieldKey, label) => {
 
     // 聚焦 Quill
     quillInstance.focus();
+    const selectionIndex = Math.max(quillInstance.getLength() - 1, 0);
+    quillInstance.setSelection(selectionIndex, 0, 'silent');
+    if (isPlaceholder || !stripHtml(currentHtml || '').trim()) {
+        quillInstance.format('font', 'dfkai-sb');
+    }
+    updateQuillWordCount();
 };
 
 /** 關閉 Quill 編輯器 */
@@ -2686,6 +2793,10 @@ const closeQuillEditor = () => {
     }
     activeEditableField = null;
     activeFieldKey = null;
+    const counter = document.getElementById('quillWordCount');
+    if (counter) {
+        counter.textContent = '字數：0';
+    }
 
     clearTimeout(quillCloseTimer);
     quillCloseTimer = setTimeout(() => {
@@ -2794,9 +2905,18 @@ const showExamPreview = () => {
             </div>`;
     } else if (config.hasSubQuestions) {
         (data.subQuestions || []).forEach((sq, i) => {
+            const readGroupStemHtml = hasMeaningfulHtmlContent(sq.stem || '')
+                ? sq.stem
+                : '<p class="text-gray-400 italic">題幹尚未填寫</p>';
+            const readGroupAnalysisHtml = hasMeaningfulHtmlContent(sq.analysis || '')
+                ? sq.analysis
+                : '<p class="text-gray-400 italic">尚未填寫解析</p>';
+
             html += `
                 <div class="mb-6 border-t border-gray-200 pt-5">
-                    <p class="font-bold mb-2">${i + 1}. ${escapeHtml(sq.stem || '(題幹尚未填寫)')}</p>`;
+                    ${data.type === 'readGroup'
+                        ? `<div class="mb-3 flex items-start gap-2"><span class="font-bold shrink-0">${i + 1}.</span><div class="min-w-0 flex-1 leading-relaxed prose prose-sm max-w-none">${readGroupStemHtml}</div></div>`
+                        : `<p class="font-bold mb-2">${i + 1}. ${escapeHtml(sq.stem || '(題幹尚未填寫)')}</p>`}`;
 
             if (config.subQuestionMode === 'freeResponse') {
                 html += `
@@ -2815,7 +2935,9 @@ const showExamPreview = () => {
                     </div>` : ''}
                     ${renderPreviewChoiceOptions(sq.options || [], sq.answer)}
                     <div class="text-xs text-gray-500">正確答案：${sq.answer || '未設定'}</div>
-                    ${['readGroup', 'listenGroup'].includes(data.type) ? `<div class="mt-3 p-3 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-gray-700 whitespace-pre-line"><span class="font-bold text-yellow-700">解析：</span>${escapeHtml(sq.analysis || '尚未填寫解析')}</div>` : ''}`;
+                    ${data.type === 'readGroup'
+                        ? `<div class="mt-3 p-3 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-gray-700"><div class="font-bold text-yellow-700 mb-2">解析</div><div class="leading-relaxed prose prose-sm max-w-none">${readGroupAnalysisHtml}</div></div>`
+                        : (data.type === 'listenGroup' ? `<div class="mt-3 p-3 bg-yellow-50 border border-yellow-100 rounded-lg text-sm text-gray-700 whitespace-pre-line"><span class="font-bold text-yellow-700">解析：</span>${escapeHtml(sq.analysis || '尚未填寫解析')}</div>` : '')}`;
             }
 
             html += '</div>';

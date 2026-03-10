@@ -87,13 +87,30 @@
 
         /* Quill 編輯器客製化 */
         .ql-toolbar.ql-snow { border: none !important; border-bottom: 1px solid #e5e7eb !important; background: #f9fafb; flex-shrink: 0; }
+        .ql-toolbar.ql-snow .ql-formats { margin-right: 10px; }
         .ql-container.ql-snow { border: none !important; font-family: 'Noto Sans TC', sans-serif; font-size: 1rem; min-height: 0; }
         #quillEditorContainer { display: flex; flex-direction: column; height: clamp(14rem, 26vh, 17rem); min-height: 0; }
         #quillEditorContainer .ql-toolbar.ql-snow { flex-shrink: 0; }
         #quillEditorContainer .ql-container.ql-snow { flex: 1; min-height: 0; }
         .ql-editor { min-height: 0; height: 100%; max-height: 100%; overflow-y: auto; line-height: 1.8; }
         .ql-editor:focus { outline: none; }
-
+        .ql-font-dfkai-sb { font-family: 'DFKai-SB', 'BiauKai', 'KaiTi', serif; }
+        .ql-font-times-new-roman { font-family: 'Times New Roman', Times, serif; }
+        .ql-snow .ql-picker.ql-size { width: 5.5rem; }
+        .ql-snow .ql-picker.ql-header { width: 6.75rem; }
+        .ql-snow .ql-picker.ql-font { width: 9rem; }
+        .ql-snow .ql-picker.ql-font .ql-picker-label:not([data-value])::before,
+        .ql-snow .ql-picker.ql-font .ql-picker-item:not([data-value])::before,
+        .ql-snow .ql-picker.ql-font .ql-picker-label[data-value="dfkai-sb"]::before,
+        .ql-snow .ql-picker.ql-font .ql-picker-item[data-value="dfkai-sb"]::before {
+            content: '標楷體';
+            font-family: 'DFKai-SB', 'BiauKai', 'KaiTi', serif;
+        }
+        .ql-snow .ql-picker.ql-font .ql-picker-label[data-value="times-new-roman"]::before,
+        .ql-snow .ql-picker.ql-font .ql-picker-item[data-value="times-new-roman"]::before {
+            content: 'Times New Roman';
+            font-family: 'Times New Roman', Times, serif;
+        }
         /* 中文標點按鈕 */
         .punct-btn {
             padding: 2px 8px;
@@ -470,16 +487,18 @@
     <!-- ============================== -->
     <!-- 底部滑入式 Quill 編輯器          -->
     <!-- ============================== -->
-        <div id="quillPanel" class="fixed inset-0 z-[150] pointer-events-none">
+    <div id="quillPanel" class="fixed inset-0 z-[150] pointer-events-none">
         <button id="quillBackdrop" type="button" aria-label="收合編輯器"
             class="absolute inset-0 bg-slate-900/10 opacity-0 transition-opacity duration-300 ease-out"></button>
         <div id="quillSheet" class="absolute inset-x-0 bottom-0 transform translate-y-full transition-transform duration-300 ease-in-out">
             <div class="bg-white border-t-2 border-[var(--color-morandi)] shadow-[0_-8px_30px_rgba(0,0,0,0.12)] pointer-events-auto max-h-[44vh] flex flex-col rounded-t-2xl overflow-hidden">
                 <!-- 編輯器標頭：欄位指示 + 中文標點 + 收起 -->
                 <div class="flex items-center justify-between px-4 py-2 bg-gray-50 border-b border-gray-200 gap-2">
-                    <div class="flex items-center gap-2 text-sm text-gray-600 flex-shrink-0">
+                    <div class="flex items-center gap-2 text-sm text-gray-600 min-w-0 flex-wrap">
                         <i class="fa-solid fa-pen-to-square text-[var(--color-morandi)]"></i>
-                        正在編輯：<span id="quillTargetLabel" class="font-bold text-[var(--color-slate-main)]">題幹</span>
+                        <span class="text-gray-500">正在編輯：</span>
+                        <span id="quillTargetLabel" class="font-bold text-[var(--color-slate-main)] truncate">題幹</span>
+                        <span id="quillWordCount" class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">字數：0</span>
                     </div>
                     <div class="flex items-center gap-1 overflow-x-auto custom-scroll flex-shrink">
                         <span class="text-[10px] text-gray-400 mr-1 flex-shrink-0">快速插入</span>
