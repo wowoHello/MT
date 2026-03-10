@@ -4,7 +4,14 @@
     {
       "name": "cwt-dev",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js", "serve", "-l", "3000", "-s", "D:\\jay_liu\\Desktop\\MT2"],
+      "runtimeArgs": [
+        "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npx-cli.js",
+        "serve",
+        "-l",
+        "3000",
+        "-s",
+        "D:\\jay_liu\\Desktop\\MT"
+      ],
       "port": 3000
     }
   ]
