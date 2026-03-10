@@ -96,7 +96,7 @@ const listenGroupFixedQuestionConfigs = [
 const typeLevelOptions = {
     all: normalLevelOptions,
     single: ['初級', '中級', '中高級'],
-    select: normalLevelOptions,
+    select: ['初級', '中級', '中高級'],
     readGroup: normalLevelOptions,
     longText: ['初級', '中級', '中高級', '優級'],
     shortGroup: ['高級', '優級'],
@@ -1429,19 +1429,37 @@ const populateFormSidebar = () => {
     document.getElementById('formDifficulty').value = q?.difficulty || '';
 };
 
-const getSingleChoiceAttributeDefaults = () => ({
+const getChoiceAttributeFieldConfig = (type = 'single') => (
+    type === 'select'
+        ? {
+            title: '精選單選題分類',
+            levelOptions: typeLevelOptions.select,
+            topicId: 'formSelectTopic',
+            subtopicId: 'formSelectSubtopic',
+            hintId: 'selectSubtopicHint'
+        }
+        : {
+            title: '一般單選題分類',
+            levelOptions: typeLevelOptions.single,
+            topicId: 'formSingleTopic',
+            subtopicId: 'formSingleSubtopic',
+            hintId: 'singleSubtopicHint'
+        }
+);
+
+const getChoiceAttributeDefaults = () => ({
     topic: currentEditingQuestion?.attributes?.topic || '',
     subtopic: currentEditingQuestion?.attributes?.subtopic || ''
 });
 
-const getSingleChoiceSelection = () => {
-    const defaults = getSingleChoiceAttributeDefaults();
+const getChoiceSelection = (type = 'single') => {
+    const defaults = getChoiceAttributeDefaults();
+    const fieldConfig = getChoiceAttributeFieldConfig(type);
     return {
-        topic: document.getElementById('formSingleTopic')?.value ?? defaults.topic,
-        subtopic: document.getElementById('formSingleSubtopic')?.value ?? defaults.subtopic
+        topic: document.getElementById(fieldConfig.topicId)?.value ?? defaults.topic,
+        subtopic: document.getElementById(fieldConfig.subtopicId)?.value ?? defaults.subtopic
     };
 };
-
 const getLongTextAttributeDefaults = () => ({
     mode: currentEditingQuestion?.attributes?.mode || ''
 });
@@ -1501,9 +1519,10 @@ const syncListenCompetency = () => {
     if (indEl) indEl.value = mapping.indicator;
 };
 
-const syncSingleSubtopicOptions = (topic, selectedSubtopic = '') => {
-    const subtopicSelect = document.getElementById('formSingleSubtopic');
-    const hintContainer = document.getElementById('singleSubtopicHint');
+const syncChoiceSubtopicOptions = (type, topic, selectedSubtopic = '') => {
+    const fieldConfig = getChoiceAttributeFieldConfig(type);
+    const subtopicSelect = document.getElementById(fieldConfig.subtopicId);
+    const hintContainer = document.getElementById(fieldConfig.hintId);
     if (!subtopicSelect || !hintContainer) return;
 
     const subtopics = singleChoiceCategoryMap[topic] || [];
@@ -1518,7 +1537,7 @@ const syncSingleSubtopicOptions = (topic, selectedSubtopic = '') => {
     subtopicSelect.classList.toggle('cursor-not-allowed', !topic);
     subtopicSelect.value = normalizedSubtopic;
     subtopicSelect.onchange = () => {
-        syncSingleSubtopicOptions(topic, subtopicSelect.value);
+        syncChoiceSubtopicOptions(type, topic, subtopicSelect.value);
     };
 
     hintContainer.className = subtopics.length ? 'grid grid-cols-2 gap-1.5' : 'flex flex-wrap gap-2';
@@ -1534,45 +1553,45 @@ const renderTypeSpecificAttributes = (type, presetSelection = null) => {
     const container = document.getElementById('formTypeSpecificAttributes');
     if (!container) return;
 
-    if (type === 'single') {
-        const selection = presetSelection || getSingleChoiceSelection();
+    if (type === 'single' || type === 'select') {
+        const selection = presetSelection || getChoiceSelection(type);
         const selectedTopic = selection.topic || '';
         const selectedSubtopic = selection.subtopic || '';
+        const fieldConfig = getChoiceAttributeFieldConfig(type);
 
         container.innerHTML = `
             <section class="rounded-2xl border border-[var(--color-morandi)]/15 bg-gradient-to-br from-[var(--color-morandi)]/10 via-white to-[var(--color-sage)]/10 p-3 space-y-3 shadow-sm">
                 <div class="space-y-1">
-                    <p class="text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-morandi)]">一般單選題分類</p>
+                    <p class="text-xs font-bold uppercase tracking-[0.16em] text-[var(--color-morandi)]">${fieldConfig.title}</p>
                 </div>
                 <div class="rounded-xl bg-white/75 px-3 py-2 text-[11px] leading-4 text-gray-500 border border-white/70">
-                    <span class="font-semibold text-gray-600">適用等級：</span>${typeLevelOptions.single.join(' / ')}
+                    <span class="font-semibold text-gray-600">適用等級：</span>${fieldConfig.levelOptions.join(' / ')}
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">主題 <span class="text-red-400">*</span></label>
-                        <select id="formSingleTopic" class="w-full px-2.5 py-2 text-[13px] border border-white/70 bg-white/90 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] cursor-pointer shadow-sm">
+                        <select id="${fieldConfig.topicId}" class="w-full px-2.5 py-2 text-[13px] border border-white/70 bg-white/90 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] cursor-pointer shadow-sm">
                             <option value="">請選擇主題</option>
                             ${singleChoiceTopics.map((topic) => `<option value="${topic}" ${selectedTopic === topic ? 'selected' : ''}>${topic}</option>`).join('')}
                         </select>
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-700 mb-1">次類 <span class="text-red-400">*</span></label>
-                        <select id="formSingleSubtopic" class="w-full px-2.5 py-2 text-[13px] border border-white/70 bg-white/90 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] cursor-pointer shadow-sm"></select>
+                        <select id="${fieldConfig.subtopicId}" class="w-full px-2.5 py-2 text-[13px] border border-white/70 bg-white/90 rounded-xl focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] cursor-pointer shadow-sm"></select>
                     </div>
                 </div>
                 <div class="space-y-1.5">
                     <p class="text-[11px] font-bold text-gray-500">次類總覽</p>
-                    <div id="singleSubtopicHint"></div>
+                    <div id="${fieldConfig.hintId}"></div>
                 </div>
             </section>`;
 
-        document.getElementById('formSingleTopic')?.addEventListener('change', (e) => {
-            syncSingleSubtopicOptions(e.target.value, '');
+        document.getElementById(fieldConfig.topicId)?.addEventListener('change', (e) => {
+            syncChoiceSubtopicOptions(type, e.target.value, '');
         });
-        syncSingleSubtopicOptions(selectedTopic, selectedSubtopic);
+        syncChoiceSubtopicOptions(type, selectedTopic, selectedSubtopic);
         return;
     }
-
     if (type === 'longText') {
         const selection = presetSelection || getLongTextSelection();
         const selectedMode = selection.mode || '';
@@ -2179,13 +2198,13 @@ const disableFormInputs = () => {
 
 /** 收集題型專屬屬性 */
 const collectTypeSpecificAttributes = (type) => {
-    if (type === 'single') {
+    if (type === 'single' || type === 'select') {
+        const fieldConfig = getChoiceAttributeFieldConfig(type);
         return {
-            topic: document.getElementById('formSingleTopic')?.value || '',
-            subtopic: document.getElementById('formSingleSubtopic')?.value || ''
+            topic: document.getElementById(fieldConfig.topicId)?.value || '',
+            subtopic: document.getElementById(fieldConfig.subtopicId)?.value || ''
         };
     }
-
     if (type === 'longText') {
         return {
             mode: document.getElementById('formLongTextMode')?.value || ''
@@ -2337,11 +2356,11 @@ const handleFormSubmit = () => {
         return;
     }
 
-    if (data.type === 'single' && (!data.attributes?.topic || !data.attributes?.subtopic)) {
-        Swal.fire({ icon: 'warning', title: '請選擇題目分類', text: '一般單選題需先選擇主題與次類。' });
+    if (['single', 'select'].includes(data.type) && (!data.attributes?.topic || !data.attributes?.subtopic)) {
+        const questionTypeLabel = data.type === 'select' ? '精選單選題' : '一般單選題';
+        Swal.fire({ icon: 'warning', title: '請選擇題目分類', text: `${questionTypeLabel}需先選擇主題與次類。` });
         return;
     }
-
     if (data.type === 'longText' && !data.attributes?.mode) {
         Swal.fire({ icon: 'warning', title: '請選擇長文題型', text: '長文題目需先選擇「引導寫作」或「資訊整合」。' });
         return;
@@ -2707,10 +2726,10 @@ const showExamPreview = () => {
     const config = getTypeConfig(data.type);
     const previewMetaTags = [];
 
-    if (data.type === 'single' && data.attributes?.topic) {
+    if (['single', 'select'].includes(data.type) && data.attributes?.topic) {
         previewMetaTags.push(`<span class="inline-flex items-center rounded-full border border-[var(--color-morandi)]/20 bg-[var(--color-morandi)]/10 px-3 py-1 text-xs font-medium text-[var(--color-morandi)]">主題：${escapeHtml(data.attributes.topic)}</span>`);
     }
-    if (data.type === 'single' && data.attributes?.subtopic) {
+    if (['single', 'select'].includes(data.type) && data.attributes?.subtopic) {
         previewMetaTags.push(`<span class="inline-flex items-center rounded-full border border-[var(--color-sage)]/20 bg-[var(--color-sage)]/12 px-3 py-1 text-xs font-medium text-[var(--color-sage)]">次類：${escapeHtml(data.attributes.subtopic)}</span>`);
     }
     if (data.type === 'longText' && data.attributes?.mode) {
