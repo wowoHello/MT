@@ -191,7 +191,7 @@ trigger: always_on
 
 ---
 
-### US-010: 角色與權限管理
+### US-010: 角色與權限管理（關聯：roles.html、cwt-roles-rules.md）
 **Description:** 身為一位管理員，我希望能管理內部人員與外部人員的權限。
 
 **Acceptance Criteria:**
