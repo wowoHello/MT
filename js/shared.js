@@ -63,8 +63,8 @@ function initNavbar() {
                         <!-- Left: Logo & Brand -->
                         <div class="flex-shrink-0 flex items-center lg:w-1/4">
                             <a href="firstpage.html" class="flex items-center gap-2 text-[var(--color-slate-main)] hover:text-[var(--color-morandi)] transition-colors">
-                                <div class="w-8 h-8 bg-[var(--color-morandi)]/10 text-[var(--color-morandi)] rounded-md flex items-center justify-center">
-                                    <i class="fa-solid fa-graduation-cap"></i>
+                                <div class="w-8 h-8 bg-[var(--color-morandi)]/10 rounded-md flex items-center justify-center overflow-hidden">
+                                    <img src="./assets/images/pencil.png" alt="CWT Logo" class="w-6 h-6 object-contain">
                                 </div>
                                 <span class="font-bold text-lg hidden sm:block tracking-wide">CWT 命題工作平臺</span>
                             </a>

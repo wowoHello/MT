@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>CWT 命題工作平臺 - 教師管理系統</title>
+    <link rel="icon" type="image/png" href="./assets/images/pencil.png">
     <!-- Tailwind CSS v4 Browser Build -->
     <script src="https://unpkg.com/@tailwindcss/browser@4"></script>
     <!-- Google Fonts -->
@@ -103,25 +104,29 @@
         <!-- Statistics Cards -->
         <div class="px-4 sm:px-6 lg:px-8 py-4 flex-shrink-0">
             <div class="grid grid-cols-2 md:grid-cols-4 gap-4" id="statsContainer">
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 transition duration-200 hover:shadow-md">
+                <div
+                    class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 transition duration-200 hover:shadow-md">
                     <div class="text-gray-500 text-xs font-bold mb-1 flex items-center justify-between">
                         人才庫總數 <i class="fa-solid fa-users text-[var(--color-morandi)] opacity-50"></i>
                     </div>
                     <div class="text-2xl font-bold text-[var(--color-slate-main)]" id="statTotal">--</div>
                 </div>
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 transition duration-200 hover:shadow-md">
+                <div
+                    class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 transition duration-200 hover:shadow-md">
                     <div class="text-gray-500 text-xs font-bold mb-1 flex items-center justify-between">
                         帳號啟用中 <i class="fa-solid fa-circle-check text-[var(--color-sage)] opacity-50"></i>
                     </div>
                     <div class="text-2xl font-bold text-[var(--color-sage)]" id="statActive">--</div>
                 </div>
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 transition duration-200 hover:shadow-md">
+                <div
+                    class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 transition duration-200 hover:shadow-md">
                     <div class="text-gray-500 text-xs font-bold mb-1 flex items-center justify-between">
                         帳號停用中 <i class="fa-solid fa-circle-xmark text-[var(--color-terracotta)] opacity-50"></i>
                     </div>
                     <div class="text-2xl font-bold text-[var(--color-terracotta)]" id="statInactive">--</div>
                 </div>
-                <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 transition duration-200 hover:shadow-md">
+                <div
+                    class="bg-white rounded-xl shadow-sm border border-gray-200 p-4 transition duration-200 hover:shadow-md">
                     <div class="text-gray-500 text-xs font-bold mb-1 flex items-center justify-between">
                         本梯次參與教師 <i class="fa-solid fa-user-check text-[var(--color-morandi)] opacity-50"></i>
                     </div>
@@ -183,7 +188,8 @@
                                     </div>
                                     <div>
                                         <div class="flex items-center gap-2 mb-1">
-                                            <h2 id="dtlName" class="text-2xl font-bold text-[var(--color-slate-main)]">...</h2>
+                                            <h2 id="dtlName" class="text-2xl font-bold text-[var(--color-slate-main)]">
+                                                ...</h2>
                                             <span id="dtlStatusBadge"
                                                 class="text-xs font-bold px-2 py-0.5 rounded bg-green-100 text-green-700">啟用</span>
                                         </div>
@@ -212,15 +218,18 @@
 
                         <!-- Detail Tabs -->
                         <div class="flex border-b border-gray-200 mb-6">
-                            <button class="detail-tab-btn active-tab px-4 py-2.5 text-sm border-b-2 border-transparent transition-colors hover:text-[var(--color-morandi)]"
+                            <button
+                                class="detail-tab-btn active-tab px-4 py-2.5 text-sm border-b-2 border-transparent transition-colors hover:text-[var(--color-morandi)]"
                                 data-tab="info">
                                 <i class="fa-solid fa-id-card mr-1.5"></i>基本資料
                             </button>
-                            <button class="detail-tab-btn px-4 py-2.5 text-sm text-gray-500 border-b-2 border-transparent transition-colors hover:text-[var(--color-morandi)]"
+                            <button
+                                class="detail-tab-btn px-4 py-2.5 text-sm text-gray-500 border-b-2 border-transparent transition-colors hover:text-[var(--color-morandi)]"
                                 data-tab="history">
                                 <i class="fa-solid fa-clock-rotate-left mr-1.5"></i>命題歷程
                             </button>
-                            <button class="detail-tab-btn px-4 py-2.5 text-sm text-gray-500 border-b-2 border-transparent transition-colors hover:text-[var(--color-morandi)]"
+                            <button
+                                class="detail-tab-btn px-4 py-2.5 text-sm text-gray-500 border-b-2 border-transparent transition-colors hover:text-[var(--color-morandi)]"
                                 data-tab="projects">
                                 <i class="fa-solid fa-folder-open mr-1.5"></i>參與專案
                             </button>
@@ -231,7 +240,8 @@
                             <div class="grid grid-cols-1 xl:grid-cols-2 gap-6">
                                 <!-- Personal Info -->
                                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                    <h3 class="text-lg font-bold text-[var(--color-slate-main)] mb-4 flex items-center gap-2">
+                                    <h3
+                                        class="text-lg font-bold text-[var(--color-slate-main)] mb-4 flex items-center gap-2">
                                         <i class="fa-solid fa-user text-[var(--color-morandi)]"></i> 個人資料
                                     </h3>
                                     <div class="space-y-3" id="dtlPersonalInfo">
@@ -241,7 +251,8 @@
 
                                 <!-- Teaching Background -->
                                 <div class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-                                    <h3 class="text-lg font-bold text-[var(--color-slate-main)] mb-4 flex items-center gap-2">
+                                    <h3
+                                        class="text-lg font-bold text-[var(--color-slate-main)] mb-4 flex items-center gap-2">
                                         <i class="fa-solid fa-graduation-cap text-[var(--color-sage)]"></i> 任教背景
                                     </h3>
                                     <div class="space-y-3" id="dtlTeachingBg">
@@ -260,7 +271,8 @@
 
                             <!-- History list -->
                             <div class="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                                <div class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
+                                <div
+                                    class="px-6 py-4 border-b border-gray-100 bg-gray-50 flex items-center justify-between">
                                     <h3 class="text-sm font-bold text-gray-700">跨專案命題歷程</h3>
                                     <select id="historyProjectFilter"
                                         class="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)] bg-white cursor-pointer">
@@ -438,7 +450,8 @@
                                 <div class="bg-blue-50/50 p-4 rounded-lg border border-blue-100">
                                     <p class="text-xs text-[var(--color-morandi)] font-medium">
                                         <i class="fa-solid fa-lightbulb mr-1"></i>
-                                        系統將自動以教師信箱作為登入帳號，預設密碼為 <span class="font-bold font-mono">Cwt2026!</span>。教師首次登入時，系統會強制要求變更密碼。
+                                        系統將自動以教師信箱作為登入帳號，預設密碼為 <span
+                                            class="font-bold font-mono">Cwt2026!</span>。教師首次登入時，系統會強制要求變更密碼。
                                     </p>
                                 </div>
                                 <div>
