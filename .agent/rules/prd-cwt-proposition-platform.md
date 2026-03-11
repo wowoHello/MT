@@ -5,8 +5,8 @@ trigger: always_on
 # PRD: CWT 命題工作平臺
 
 > **文件版本**：v1.3  
-> **最後更新**：2026-03-09  
-> **維護者**：CWT 開發團隊
+> **最後更新**：2026-03-11
+> **維護者**：劉明杰 Jay
 
 ## 1. Introduction / Overview
 
@@ -81,7 +81,7 @@ trigger: always_on
 
 ---
 
-### US-004: 命題儀錶板
+### US-004: 命題儀表板（關聯：dashboard.html）
 **Description:** 身為一位管理員，我希望能在儀錶板頁面掌握當前梯次的命題進度，以便即時監控工作狀態。
 
 **Acceptance Criteria:**
@@ -93,7 +93,7 @@ trigger: always_on
 
 ---
 
-### US-005: 命題專案管理
+### US-005: 命題專案管理（關聯：projects.html）
 **Description:** 身為一位管理員，我希望能管理命題專案（梯次），包括新增、編輯、設定期限、指派人員、命題數量需求設定與分配指定人員的命題數量。
 
 **Acceptance Criteria:**
@@ -116,7 +116,7 @@ trigger: always_on
 
 ---
 
-### US-006: 命題總覽
+### US-006: 命題總覽（關聯：overview.html）
 **Description:** 身為一位管理員或相關身分，我希望能總覽當前梯次所有試題的命題狀態與審題進度。
 
 **可檢視此頁面的角色層級：**
@@ -135,7 +135,7 @@ trigger: always_on
 
 ---
 
-### US-007: 命題任務 - 試題命製
+### US-007: 命題任務 - 試題命製（關聯：cwt-list.html、cwt-prop-rules.md）
 **Description:** 身為一位命題教師，我希望能在「命題任務」頁面新增、編輯、預覽試題，完成命題與修題任務。
 
 **Acceptance Criteria:**
@@ -151,7 +151,7 @@ trigger: always_on
 
 ---
 
-### US-008: 命題任務 - 狀態分頁與篩選
+### US-008: 命題任務 - 狀態分頁與篩選（關聯：cwt-list.html、cwt-prop-rules.md）
 **Description:** 身為命題教師，我希望能透過分頁和篩選管理草稿、鎖定待審、發回修題以及已判決的試題。
 
 **Acceptance Criteria:**
@@ -168,7 +168,7 @@ trigger: always_on
 
 ---
 
-### US-009: 審題任務 - 三審管控制度
+### US-009: 審題任務 - 三審管控制度（關聯：reviews.html、cwt-ex-rules.md）
 **Description:** 身為一位審題委員/管理人員，我希望能審閱分配給我的試題並給予意見或做出裁決。
 
 **Acceptance Criteria:**
@@ -195,14 +195,14 @@ trigger: always_on
 **Description:** 身為一位管理員，我希望能管理內部人員與外部人員的權限。
 
 **Acceptance Criteria:**
-- [ ] 分為「人員帳號管理」（內部同仁）與「角色權限管理」（內、外部身分設定）
+- [ ] 兩個頁籤分為「人員帳號管理」（內部同仁）與「角色權限管理」（內、外部身分設定）
 - [ ] 動態渲染角色卡片，支援權限矩陣（各項功能開關設定）
 - [ ] 支援新增使用者帳號及編輯功能，並可指派梯次與角色
 - [ ] Verify in browser using dev-browser skill
 
 ---
 
-### US-011: 系統公告管理/使用說明
+### US-011: 系統公告管理/使用說明（關聯：announcements.html、cwt-ac-rules.md）
 **Description:** 身為一位管理員，我希望能管理系統公告，並適時提示使用者。
 
 **Acceptance Criteria:**
@@ -214,7 +214,7 @@ trigger: always_on
 
 ---
 
-### US-012: 教師管理系統（人才庫）
+### US-012: 教師管理系統（人才庫）（關聯：teachers.html、cwt-teacher-rules.md）
 **Description:** 身為管理員，我希望能管理所有參與的教師名單及其歷程。
 
 **Acceptance Criteria:**
