@@ -56,37 +56,39 @@ function initNavbar() {
     const navbarContainer = document.getElementById('navbar-container');
     if (navbarContainer) {
         navbarContainer.innerHTML = `
-            <nav class="bg-white border-b border-gray-200 shadow-sm fixed top-0 w-full z-40 h-16 transition-all">
+            <nav class="bg-[var(--color-morandi)] shadow-md fixed top-0 w-full z-40 h-16 transition-all">
                 <div class="max-w-[1920px] mx-auto px-4 sm:px-6 lg:px-8 h-full">
                     <div class="flex justify-between items-center h-full gap-4">
                         
                         <!-- Left: Logo & Brand -->
                         <div class="flex-shrink-0 flex items-center lg:w-1/4">
-                            <a href="firstpage.html" class="flex items-center gap-2 text-[var(--color-slate-main)] hover:text-[var(--color-morandi)] transition-colors">
-                                <div class="w-8 h-8 bg-[var(--color-morandi)]/10 rounded-md flex items-center justify-center overflow-hidden">
-                                    <img src="./assets/images/pencil.png" alt="CWT Logo" class="w-6 h-6 object-contain">
+                            <a href="firstpage.html" class="flex items-center gap-2 text-white hover:text-blue-100 transition-colors">
+                                <div class="w-8 h-8 bg-white/20 rounded-md flex items-center justify-center overflow-hidden">
+                                    <img src="./assets/images/pencil.png" alt="CWT Logo" class="w-6 h-6 object-contain drop-shadow-sm">
                                 </div>
                                 <span class="font-bold text-lg hidden sm:block tracking-wide">CWT 命題工作平臺</span>
                             </a>
                         </div>
                         
                         <!-- Center: Project Switcher -->
-                        <div class="flex-grow flex justify-center items-center relative lg:w-2/4">
-                            <button id="projectSelectorBtn" class="flex items-center justify-center gap-2 px-4 py-1.5 bg-gray-50 border border-gray-200 hover:bg-gray-100 hover:border-gray-300 rounded-full transition-all cursor-pointer focus:outline-none min-w-[200px] sm:min-w-[280px]">
-                                <span class="bg-[var(--color-morandi)] text-white text-xs px-2 py-0.5 rounded-full mr-1">${currentProject.year}年度</span>
-                                <span class="font-semibold text-[var(--color-slate-main)] truncate max-w-[150px] sm:max-w-[200px]" id="currentProjectName">${currentProject.name}</span>
-                                <i class="fa-solid fa-chevron-down text-gray-400 text-xs mt-0.5 ml-1 transition-transform" id="projectSelectorIcon"></i>
+                        <div class="flex-grow flex justify-center items-center relative lg:w-2/4 max-w-2xl px-2 sm:px-4">
+                            <button id="projectSelectorBtn" class="flex items-center justify-between gap-1 sm:gap-2 px-3 sm:px-4 py-1.5 bg-white/10 border border-white/20 hover:bg-white/20 hover:border-white/30 rounded-full transition-all cursor-pointer focus:outline-none w-full shadow-sm group">
+                                <div class="flex items-center flex-1 min-w-0 overflow-hidden text-left gap-1.5 sm:gap-2">
+                                    <span class="flex-shrink-0 bg-white text-[var(--color-morandi)] font-bold text-[10px] sm:text-xs px-2 py-0.5 rounded-full whitespace-nowrap shadow-sm">${currentProject.year}年度</span>
+                                    <span class="font-semibold text-[13px] sm:text-sm text-white truncate" id="currentProjectName">${currentProject.name}</span>
+                                </div>
+                                <i class="fa-solid fa-chevron-down text-white/80 group-hover:text-white text-xs flex-shrink-0 transition-transform" id="projectSelectorIcon"></i>
                             </button>
                             
                             <!-- Dropdown Menu -->
-                            <div id="projectDropdown" class="hidden absolute top-full left-1/2 transform -translate-x-1/2 mt-2 w-[320px] bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50">
+                            <div id="projectDropdown" class="hidden absolute top-full mt-2 w-full min-w-[300px] mx-auto bg-white rounded-xl shadow-xl border border-gray-100 overflow-hidden z-50 origin-top">
                                 <div class="p-3 border-b border-gray-100 bg-gray-50/50">
                                     <div class="relative">
                                         <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-gray-400 text-sm"></i>
                                         <input type="text" id="projectSearchInput" class="w-full pl-8 pr-3 py-1.5 text-sm border-gray-300 rounded-lg focus:ring-[var(--color-morandi)] focus:border-[var(--color-morandi)]" placeholder="搜尋專案梯次...">
                                     </div>
                                 </div>
-                                <div class="max-h-[60vh] overflow-y-auto" id="projectListContainer">
+                                <div class="max-h-[50vh] sm:max-h-[60vh] overflow-y-auto" id="projectListContainer">
                                     <!-- List injected by JS -->
                                 </div>
                             </div>
@@ -95,11 +97,11 @@ function initNavbar() {
                         <!-- Right: User Info & Actions -->
                         <div class="flex-shrink-0 flex items-center justify-end gap-3 lg:w-1/4">
                             <div class="flex items-center gap-2 relative group cursor-pointer">
-                                <div class="w-8 h-8 rounded-full bg-[var(--color-sage)] text-white flex items-center justify-center font-bold text-sm">
+                                <div class="w-8 h-8 rounded-full bg-[var(--color-sage)] text-white shadow-sm border border-white/20 flex items-center justify-center font-bold text-sm">
                                     ${user.name.charAt(0)}
                                 </div>
                                 <div class="hidden md:block text-sm text-right">
-                                    <div class="font-bold text-[var(--color-slate-main)] leading-none">${user.name}</div>
+                                    <div class="font-bold text-white leading-none tracking-wide">${user.name}</div>
                                 </div>
                                 
                                 <!-- User Dropdown -->
@@ -444,8 +446,54 @@ function initDraggableController() {
         // 如果是拖拽，則暫時停用點擊後的 hover 觸發展開 (這裡靠 group-hover 處理，不需要太複雜)
     };
 
+    // 視窗大小改變時，確保元素不會跑出畫面外
+    const onResize = () => {
+        const rect = el.getBoundingClientRect();
+        let currentLeft = rect.left;
+        let currentTop = rect.top;
+        
+        const winWidth = window.innerWidth;
+        const winHeight = window.innerHeight;
+        const elWidth = el.offsetWidth;
+        const elHeight = el.offsetHeight;
+        
+        let needUpdate = false;
+        
+        // 檢查右邊界
+        if (currentLeft + elWidth > winWidth) {
+            currentLeft = winWidth - elWidth - 10;
+            needUpdate = true;
+        }
+        // 檢查左邊界
+        if (currentLeft < 0) {
+            currentLeft = 10;
+            needUpdate = true;
+        }
+        // 檢查下邊界
+        if (currentTop + elHeight > winHeight) {
+            currentTop = winHeight - elHeight - 10;
+            needUpdate = true;
+        }
+        // 檢查上邊界
+        if (currentTop < 0) {
+            // 保留空間給上方的展開選單
+            currentTop = 200; 
+            needUpdate = true;
+        }
+        
+        if (needUpdate) {
+            el.style.left = `${currentLeft}px`;
+            el.style.top = `${currentTop}px`;
+            const pos = { left: el.style.left, top: el.style.top };
+            localStorage.setItem('cwt_font_pos', JSON.stringify(pos));
+        }
+    };
+
     mainBtn.addEventListener('mousedown', onStart);
     mainBtn.addEventListener('touchstart', onStart, { passive: true });
+    
+    // 防呆處理縮放事件
+    window.addEventListener('resize', onResize);
 
     // 防止在拖拽時產生的 click 事件觸發其他副作用 (如果有的話)
     mainBtn.addEventListener('click', (e) => {

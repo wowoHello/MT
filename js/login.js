@@ -25,9 +25,6 @@ const loginAlertMsg = document.getElementById('loginAlertMsg');
 document.addEventListener('DOMContentLoaded', () => {
     // Set current year dynamically
     document.getElementById('currentYear').textContent = new Date().getFullYear();
-    
-    // Initialize font size controller
-    initFontSizeController();
 
     // Initialize Captcha
     refreshCaptcha();
@@ -222,32 +219,7 @@ function setLoadingState(isLoading) {
     }
 }
 
-// --- Font Size Controller ---
-function initFontSizeController() {
-    const root = document.documentElement;
-    // Default size scale is 100%
-    let currentScale = parseFloat(localStorage.getItem('cwt_font_scale')) || 100;
-    
-    const applyScale = (scale) => {
-        // limit scale between 90% and 130% for visual sanity
-        if (scale < 90) scale = 90;
-        if (scale > 130) scale = 130;
-        
-        root.style.fontSize = `${scale}%`;
-        localStorage.setItem('cwt_font_scale', scale);
-        currentScale = scale;
-    };
-    
-    // Apply initial scale on load
-    applyScale(currentScale);
-    
-    document.getElementById('fontIncreaseBtn').addEventListener('click', () => applyScale(currentScale + 5));
-    document.getElementById('fontDecreaseBtn').addEventListener('click', () => applyScale(currentScale - 5));
-    document.getElementById('fontResetBtn').addEventListener('click', () => applyScale(100));
-    
-    // [Blazor Migration Note] 這個控制器透過設定 HTML element font-size 來達成全局 rem 自適應，
-    // 遷移時可完全無痛保留，只要保留在 Shared Layout 即可。
-}
+
 
 // --- Forgot Password Modal ---
 function initForgotPwdModal() {
