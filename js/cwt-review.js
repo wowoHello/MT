@@ -740,6 +740,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const projectId = localStorage.getItem('cwt_current_project') || 'P2026-01';
     loadPageData(projectId);
+    
+    // Deep Linking: 檢查 URL 參數切換頁籤 (US-009)
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    if (tabParam && ['review', 'history'].includes(tabParam)) {
+        switchTab(tabParam);
+    }
 
     document.addEventListener('projectChanged', (e) => {
         loadPageData(e.detail.id);

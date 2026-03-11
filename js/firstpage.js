@@ -90,8 +90,9 @@ const menuItems = [
 
 // 假資料：系統公告與今日提醒 (依照目前梯次變化)
 const remindersDb = [
-    { type: 'urgent', text: '【命題階段】距離結案倒數 3 天！您尚有 2 題未完成。', project: 'P2026-01', link: 'my-tasks.html' },
-    { type: 'urgent', text: '【互審修題】請留意，此階段即將於今日 23:59 關閉。', project: 'P2026-01', link: 'my-tasks.html' },
+    { type: 'urgent', text: '【命題階段】距離結案倒數 3 天！您尚有 2 題未完成。', project: 'P2026-01', link: 'cwt-list.html?tab=compose' },
+    { type: 'urgent', text: '【互審修題】請留意，此階段即將於今日 23:59 關閉。', project: 'P2026-01', link: 'cwt-list.html?tab=revision' },
+    { type: 'urgent', text: '【專家審題】您受邀參與的梯次有 3 題待審，請撥冗處理。', project: 'P2026-01', link: 'reviews.html' },
     { type: 'normal', title: '題型規格異動通知', date: '2026-03-08', isTop: true, project: 'ALL', content: '自115年度秋季起，長文閱讀題將新增「跨領域素養」指標，請各位教師在命題時於表單右側屬性欄位正確勾選，詳情請參考最新的使用說明手冊。' },
     { type: 'normal', title: '系統維護提前公告', date: '2026-03-05', isTop: false, project: 'ALL', content: '資料庫將於本週末凌晨 02:00~04:00 進行搬遷與擴容作業，屆時命題平台將暫時無法登入與存檔，請預先將草稿儲存。' },
     { type: 'normal', title: 'P2026-01 梯次準備期程啟動', date: '2026-02-28', isTop: false, project: 'P2026-01', content: '各位教師好，115年度春季全民中檢命題專案已建檔，請負責此梯次的老師登入後確認左方倒數時程，並開始準備素材。' }

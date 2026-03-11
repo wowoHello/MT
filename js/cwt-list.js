@@ -782,6 +782,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // 載入資料
     const projectId = localStorage.getItem('cwt_current_project') || 'P2026-01';
     loadPageData(projectId);
+    
+    // Deep Linking: 檢查 URL 參數切換頁籤 (US-008)
+    const urlParams = new URLSearchParams(window.location.search);
+    const tabParam = urlParams.get('tab');
+    if (tabParam && ['compose', 'revision', 'history'].includes(tabParam)) {
+        switchTab(tabParam);
+    }
 
     // 監聽專案切換事件
     document.addEventListener('projectChanged', (e) => {
