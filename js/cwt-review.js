@@ -83,6 +83,56 @@ const teacherNames = {
     'S3001': '林總召', 'S3002': '許編輯'
 };
 
+/**
+ * 模擬當前梯次的七階段時程（DEMO 用）
+ * 未來搬家到 Blazor 後，此資料由後端 API 的專案管理模組提供
+ */
+const projectStageTimeline = [
+    { key: 'proposing', label: '命題', icon: 'fa-solid fa-pen-nib', start: '2026-02-01', end: '2026-02-28' },
+    { key: 'peerReview', label: '互審', icon: 'fa-solid fa-people-arrows', start: '2026-03-01', end: '2026-03-10' },
+    { key: 'peerEdit', label: '互修', icon: 'fa-solid fa-pen-to-square', start: '2026-03-11', end: '2026-03-17' },
+    { key: 'expertReview', label: '專審', icon: 'fa-solid fa-user-tie', start: '2026-03-18', end: '2026-03-27' },
+    { key: 'expertEdit', label: '專修', icon: 'fa-solid fa-pen-to-square', start: '2026-03-28', end: '2026-04-03' },
+    { key: 'finalReview', label: '總審', icon: 'fa-solid fa-crown', start: '2026-04-04', end: '2026-04-13' },
+    { key: 'finalEdit', label: '總修', icon: 'fa-solid fa-pen-to-square', start: '2026-04-14', end: '2026-04-20' }
+];
+
+/**
+ * 根據當前日期判定各階段的狀態（done / active / upcoming）
+ * 同時回傳當前進行中的階段索引與剩餘天數
+ */
+const getCurrentStageInfo = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    let activeIndex = -1;
+    let daysRemaining = 0;
+
+    const stages = projectStageTimeline.map((stage, i) => {
+        const start = new Date(stage.start + 'T00:00:00');
+        const end = new Date(stage.end + 'T23:59:59');
+        let state = 'upcoming';
+
+        if (today > end) {
+            state = 'done';
+        } else if (today >= start && today <= end) {
+            state = 'active';
+            activeIndex = i;
+            // 計算剩餘天數（含當天）
+            const endDate = new Date(stage.end + 'T00:00:00');
+            daysRemaining = Math.ceil((endDate - today) / (1000 * 60 * 60 * 24));
+        }
+
+        return { ...stage, state };
+    });
+
+    // 若所有階段都已結束，標記最後一個為 active（展示用）
+    if (activeIndex === -1 && stages.every(s => s.state === 'done')) {
+        activeIndex = stages.length - 1;
+    }
+
+    return { stages, activeIndex, daysRemaining };
+};
+
 
 // ===================================================================
 // Mock 資料 — 分配給當前審題人員的題目
@@ -888,7 +938,27 @@ const sortQuestions = (questions) => {
 // ===================================================================
 
 const loadPageData = (projectId) => {
+    // 動態更新標題旁的階段指示燈
+    updateStageIndicator();
     renderTabContent();
+};
+
+/**
+ * 動態更新頁面標題旁的階段指示燈文字
+ */
+const updateStageIndicator = () => {
+    const indicator = document.getElementById('stageIndicator');
+    if (!indicator) return;
+
+    const { stages, activeIndex, daysRemaining } = getCurrentStageInfo();
+    if (activeIndex >= 0) {
+        const active = stages[activeIndex];
+        const suffix = active.state === 'done' ? '已完成' : `進行中`;
+        indicator.innerHTML = `
+            <span class="w-2 h-2 rounded-full bg-[var(--color-terracotta)] stage-active"></span>
+            ${active.label}階段${suffix}
+        `;
+    }
 };
 
 const getCurrentQuestions = () => {
@@ -931,57 +1001,121 @@ const renderTabContent = () => {
 
 
 // ===================================================================
-// 統計卡片
+// 統計卡片 / 時程燈號條
 // ===================================================================
 
-const getTabStatsCards = (questions) => {
-    if (currentTab === 'review') {
-        return [
-            { value: 'all', title: '待審總計', count: questions.length, tone: 'slate' },
-            { value: 'peer_pending', title: '互審中', count: questions.filter(q => q.reviewStage === 'peer' && q.reviewStatus === 'pending').length, tone: 'blue' },
-            { value: 'expert_pending', title: '專審中', count: questions.filter(q => q.reviewStage === 'expert' && q.reviewStatus === 'pending').length, tone: 'purple' },
-            { value: 'final_pending', title: '總審中', count: questions.filter(q => q.reviewStage === 'final' && q.reviewStatus === 'pending').length, tone: 'red' }
-        ];
-    }
-    return [
-        { value: 'all', title: '全部題目', count: questions.length, tone: 'slate' },
-        { value: 'adopted', title: '已採用', count: questions.filter(q => q.finalResult === 'adopted').length, tone: 'emerald' },
-        { value: 'rejected', title: '不採用', count: questions.filter(q => q.finalResult === 'rejected').length, tone: 'gray' }
-    ];
-};
+/** 歷史 Tab 的統計卡片（維持原設計） */
+const getHistoryStatsCards = (questions) => [
+    { value: 'all', title: '全部題目', count: questions.length, tone: 'slate' },
+    { value: 'adopted', title: '已採用', count: questions.filter(q => q.finalResult === 'adopted').length, tone: 'emerald' },
+    { value: 'rejected', title: '不採用', count: questions.filter(q => q.finalResult === 'rejected').length, tone: 'gray' }
+];
 
 const getStatsCardToneClass = (tone, isActive) => {
     const map = {
         slate: isActive ? 'border-slate-400 bg-slate-50' : 'border-gray-200 bg-white',
-        blue: isActive ? 'border-blue-400 bg-blue-50' : 'border-gray-200 bg-white',
-        purple: isActive ? 'border-purple-400 bg-purple-50' : 'border-gray-200 bg-white',
-        red: isActive ? 'border-red-400 bg-red-50' : 'border-gray-200 bg-white',
         emerald: isActive ? 'border-emerald-400 bg-emerald-50' : 'border-gray-200 bg-white',
         gray: isActive ? 'border-gray-400 bg-gray-50' : 'border-gray-200 bg-white'
     };
     return map[tone] || map.slate;
 };
 
-const renderTabStats = (questions) => {
-    const container = document.getElementById('tabStatsContainer');
-    if (!container) return;
+/**
+ * 渲染審題作業區的七階段時程燈號條 + 統計摘要條
+ */
+const renderReviewTimeline = (container, questions) => {
+    const { stages, activeIndex, daysRemaining } = getCurrentStageInfo();
 
-    const cards = getTabStatsCards(questions);
+    // 統計數據
+    const totalCount = questions.length;
+    const pendingCount = questions.filter(q => q.reviewStatus === 'pending').length;
+    const decidedCount = questions.filter(q => q.reviewStatus === 'decided').length;
+
+    // 當前階段資訊提示文字
+    let stageHint = '';
+    if (activeIndex >= 0) {
+        const active = stages[activeIndex];
+        if (active.state === 'active') {
+            stageHint = `<i class="fa-solid fa-location-dot mr-1"></i> 目前階段：<strong>${active.label}</strong>（剩餘 <strong class="text-[var(--color-terracotta)]">${daysRemaining}</strong> 天）`;
+        } else {
+            stageHint = `<i class="fa-solid fa-circle-check mr-1 text-[var(--color-sage)]"></i> 所有審題階段已完成`;
+        }
+    }
+
+    container.innerHTML = `
+        <!-- 七階段時程燈號條 -->
+        <div class="mb-4">
+            <div class="stage-timeline relative" style="padding: 0 20px;">
+                ${stages.map((s, i) => {
+        const icon = s.state === 'done' ? 'fa-solid fa-check'
+            : s.state === 'active' ? s.icon
+                : 'fa-solid fa-ellipsis';
+        // 連接線（前一個到當前之間）
+        let lineHtml = '';
+        if (i > 0) {
+            const prevState = stages[i - 1].state;
+            const lineClass = (prevState === 'done' && (s.state === 'done' || s.state === 'active')) ? 'done' : 'upcoming';
+            lineHtml = `<div class="stage-line ${lineClass}" style="left: calc(-50% + 14px); right: calc(50% + 14px);"></div>`;
+        }
+        return `
+                        <div class="stage-node">
+                            ${lineHtml}
+                            <div class="stage-dot ${s.state}" title="${s.label}：${s.start} ~ ${s.end}">
+                                <i class="${icon} text-[11px]"></i>
+                            </div>
+                            <div class="stage-label ${s.state}">${s.label}</div>
+                        </div>`;
+    }).join('')}
+            </div>
+            <div class="text-center text-xs text-gray-500 mt-3 font-medium">
+                ${stageHint}
+            </div>
+        </div>
+
+        <!-- 統計摘要條 -->
+        <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 bg-white rounded-xl border border-gray-200 px-5 py-3 text-sm font-medium shadow-sm">
+            <div class="flex items-center gap-1.5 text-gray-700">
+                <i class="fa-solid fa-list-check text-[var(--color-morandi)]"></i>
+                本區題目
+                <span class="text-lg font-bold text-[var(--color-slate-main)] ml-0.5">${totalCount}</span>
+            </div>
+            <span class="text-gray-300">|</span>
+            <div class="flex items-center gap-1.5 text-gray-700">
+                <i class="fa-solid fa-hourglass-half text-[var(--color-terracotta)]"></i>
+                待處理
+                <span class="text-lg font-bold text-[var(--color-terracotta)] ml-0.5">${pendingCount}</span>
+            </div>
+            <span class="text-gray-300">|</span>
+            <div class="flex items-center gap-1.5 text-gray-700">
+                <i class="fa-solid fa-circle-check text-[var(--color-sage)]"></i>
+                已決策
+                <span class="text-lg font-bold text-[var(--color-sage)] ml-0.5">${decidedCount}</span>
+            </div>
+        </div>
+    `;
+};
+
+/**
+ * 渲染歷史 Tab 的統計卡片（維持原設計）
+ */
+const renderHistoryCards = (container, questions) => {
+    const cards = getHistoryStatsCards(questions);
     const activeFilter = getStatusFilterValue();
 
     container.innerHTML = `
         <div class="flex flex-wrap gap-3">
             ${cards.map(card => {
-                const isActive = activeFilter === card.value || (card.value === 'all' && activeFilter === 'all');
-                return `
+        const isActive = activeFilter === card.value || (card.value === 'all' && activeFilter === 'all');
+        return `
                     <button type="button" data-status-filter="${card.value}" class="min-w-[150px] flex-1 cursor-pointer rounded-xl border px-4 py-3 text-left transition-colors ${getStatsCardToneClass(card.tone, isActive)} ${isActive ? 'shadow-sm' : ''}">
                         <div class="text-sm font-bold text-gray-700">${card.title}</div>
                         <div class="mt-3 text-3xl font-bold text-gray-900">${card.count}</div>
                         <div class="mt-2 text-xs ${isActive ? 'text-gray-600' : 'text-gray-400'}">${card.value === 'all' ? '顯示全部題目' : '點一下套用篩選'}</div>
                     </button>`;
-            }).join('')}
+    }).join('')}
         </div>`;
 
+    // 卡片點擊篩選
     container.querySelectorAll('[data-status-filter]').forEach(btn => {
         btn.addEventListener('click', () => {
             const val = btn.dataset.statusFilter;
@@ -993,6 +1127,20 @@ const renderTabStats = (questions) => {
             renderTabContent();
         });
     });
+};
+
+/**
+ * 主要統計區渲染分發：依當前 Tab 決定渲染方式
+ */
+const renderTabStats = (questions) => {
+    const container = document.getElementById('tabStatsContainer');
+    if (!container) return;
+
+    if (currentTab === 'review') {
+        renderReviewTimeline(container, questions);
+    } else {
+        renderHistoryCards(container, questions);
+    }
 };
 
 
@@ -1323,13 +1471,13 @@ const renderQuestionContent = (q) => {
                 <h4 class="text-xs font-bold text-[var(--color-morandi)] uppercase tracking-wider mb-2">選項</h4>
                 <div class="space-y-2">
                     ${q.options.map(opt => {
-                        const isAnswer = opt.label === q.answer;
-                        return `<div class="flex items-start gap-2 p-3 rounded-lg ${isAnswer ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-100'}">
+            const isAnswer = opt.label === q.answer;
+            return `<div class="flex items-start gap-2 p-3 rounded-lg ${isAnswer ? 'bg-emerald-50 border border-emerald-200' : 'bg-gray-50 border border-gray-100'}">
                             <span class="flex-shrink-0 w-7 h-7 rounded-full ${isAnswer ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-500'} flex items-center justify-center text-xs font-bold">${opt.label}</span>
                             <span class="text-sm text-gray-800 pt-1">${opt.text || ''}</span>
                             ${isAnswer ? '<span class="ml-auto text-xs text-emerald-600 font-bold flex-shrink-0"><i class="fa-solid fa-check mr-1"></i>正確答案</span>' : ''}
                         </div>`;
-                    }).join('')}
+        }).join('')}
                 </div>
             </div>`;
     }
@@ -1341,34 +1489,34 @@ const renderQuestionContent = (q) => {
                 <h4 class="text-xs font-bold text-[var(--color-morandi)] uppercase tracking-wider mb-3">子題 (${q.subQuestions.length} 題)</h4>
                 <div class="space-y-4">
                     ${q.subQuestions.map((sq, i) => {
-                        let sqHtml = `<div class="p-4 bg-gray-50 rounded-lg border border-gray-100">
+            let sqHtml = `<div class="p-4 bg-gray-50 rounded-lg border border-gray-100">
                             <div class="text-xs font-bold text-gray-500 mb-2">第 ${i + 1} 題${sq.level ? ` — ${sq.level}` : ''}${sq.competency ? ` / ${sq.competency}` : ''}</div>
                             <div class="text-sm text-gray-800 mb-2">${sq.stem || ''}</div>`;
 
-                        if (sq.options && sq.options.length > 0) {
-                            sqHtml += `<div class="space-y-1.5 ml-2">
+            if (sq.options && sq.options.length > 0) {
+                sqHtml += `<div class="space-y-1.5 ml-2">
                                 ${sq.options.map(opt => {
-                                    const isAns = opt.label === sq.answer;
-                                    return `<div class="flex items-center gap-2 text-sm ${isAns ? 'text-emerald-700 font-bold' : 'text-gray-600'}">
+                    const isAns = opt.label === sq.answer;
+                    return `<div class="flex items-center gap-2 text-sm ${isAns ? 'text-emerald-700 font-bold' : 'text-gray-600'}">
                                         <span class="w-5 h-5 rounded-full ${isAns ? 'bg-emerald-500 text-white' : 'bg-gray-200 text-gray-500'} flex items-center justify-center text-[10px] font-bold flex-shrink-0">${opt.label}</span>
                                         ${opt.text || ''}
                                         ${isAns ? ' <i class="fa-solid fa-check text-emerald-500 ml-1"></i>' : ''}
                                     </div>`;
-                                }).join('')}
+                }).join('')}
                             </div>`;
-                        }
+            }
 
-                        if (sq.dimension) {
-                            sqHtml += `<div class="mt-2 text-xs text-gray-400">向度：${sq.dimension} / 指標：${sq.indicator || '--'}</div>`;
-                        }
+            if (sq.dimension) {
+                sqHtml += `<div class="mt-2 text-xs text-gray-400">向度：${sq.dimension} / 指標：${sq.indicator || '--'}</div>`;
+            }
 
-                        if (sq.analysis) {
-                            sqHtml += `<div class="mt-2 text-xs text-gray-500 bg-white p-2 rounded border border-gray-100"><strong>參考解析：</strong>${sq.analysis}</div>`;
-                        }
+            if (sq.analysis) {
+                sqHtml += `<div class="mt-2 text-xs text-gray-500 bg-white p-2 rounded border border-gray-100"><strong>參考解析：</strong>${sq.analysis}</div>`;
+            }
 
-                        sqHtml += `</div>`;
-                        return sqHtml;
-                    }).join('')}
+            sqHtml += `</div>`;
+            return sqHtml;
+        }).join('')}
                 </div>
             </div>`;
     }
