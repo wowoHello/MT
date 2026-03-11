@@ -1244,7 +1244,7 @@ const renderQuestionList = () => {
             if (q.status === 'draft') {
                 actionBtns = `
                     <button onclick="openFormModal('edit', '${q.id}')" class="text-xs px-3 py-1.5 bg-[var(--color-morandi)] text-white rounded-md hover:bg-[#5b7a95] transition-colors cursor-pointer font-medium">編輯</button>
-                    <button onclick="submitQuestion('${q.id}')" class="text-xs px-3 py-1.5 border border-gray-300 rounded-md hover:bg-gray-50 text-gray-600 transition-colors cursor-pointer font-medium">送審</button>`;
+                    <button onclick="deleteQuestion('${q.id}')" class="text-xs px-3 py-1.5 border border-red-200 rounded-md hover:bg-red-50 text-red-500 transition-colors cursor-pointer font-medium"><i class="fa-regular fa-trash-can mr-1"></i>刪除</button>`;
             } else if (q.status === 'completed') {
                 actionBtns = `
                     <button onclick="openFormModal('edit', '${q.id}')" class="text-xs px-3 py-1.5 bg-[var(--color-morandi)] text-white rounded-md hover:bg-[#5b7a95] transition-colors cursor-pointer font-medium">編輯</button>
@@ -2658,6 +2658,44 @@ const submitQuestion = (questionId) => {
     });
 };
 
+/** 刪除試題 (軟刪除) */
+const deleteQuestion = (questionId) => {
+    const qIndex = myQuestionsDb.findIndex(q => q.id === questionId);
+    if (qIndex === -1) return;
+
+    const q = myQuestionsDb[qIndex];
+
+    Swal.fire({
+        title: '確認刪除？',
+        text: `確定要刪除試題「${q.id}」嗎？此動作將無法復原。`,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonColor: '#D98A6C',
+        cancelButtonColor: '#9ca3af',
+        confirmButtonText: '確認刪除',
+        cancelButtonText: '取消',
+        reverseButtons: true
+    }).then((result) => {
+        if (result.isConfirmed) {
+            // 目前 Demo 採用直接從陣列移除。
+            // 實務上可能會是變更 status 為 'deleted'
+            myQuestionsDb.splice(qIndex, 1);
+            
+            Swal.fire({
+                icon: 'success',
+                title: '已刪除',
+                toast: true,
+                position: 'top-end',
+                showConfirmButton: false,
+                timer: 2000,
+                timerProgressBar: true
+            });
+
+            renderTabContent();
+        }
+    });
+};
+
 
 // ===================================================================
 // Quill 底部滑入式編輯器
@@ -3025,6 +3063,7 @@ const showAutoSaveToast = () => {
 // 讓函式可在 HTML onclick 中使用 (全域掛載)
 window.openFormModal = openFormModal;
 window.submitQuestion = submitQuestion;
+window.deleteQuestion = deleteQuestion;
 window.activateQuillField = activateQuillField;
 window.addSubQuestion = addSubQuestion;
 window.removeSubQuestion = removeSubQuestion;
