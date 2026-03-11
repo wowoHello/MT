@@ -73,7 +73,7 @@ function refreshCaptcha() {
     ctx.clearRect(0, 0, width, height);
     
     // Generate text
-    generatedCaptcha = generateRandomString(4);
+    generatedCaptcha = generateRandomString(6);
     
     // Background color
     ctx.fillStyle = '#f8fafc';
@@ -106,7 +106,7 @@ function refreshCaptcha() {
         ctx.fillStyle = '#374151'; // Slate main color
         // Random scale and rotate for better security simulation
         ctx.save();
-        ctx.translate(15 + (i * 20), height / 2 + (Math.random() * 6 - 3));
+        ctx.translate(20 + (i * 20), height / 2 + (Math.random() * 6 - 3));
         ctx.rotate((Math.random() * 0.4 - 0.2));
         ctx.fillText(char, 0, 0);
         ctx.restore();
