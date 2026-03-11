@@ -273,31 +273,77 @@ function injectGlobalFontController() {
     // 如果已經存在就不要重複注入
     if (document.getElementById('cwtFontController')) return;
 
+    // 讀取上次儲存的位置，預設為右下角
+    const savedPos = JSON.parse(localStorage.getItem('cwt_font_pos')) || { bottom: '24px', right: '24px' };
+    const posStyle = savedPos.left !== undefined 
+        ? `left: ${savedPos.left}; top: ${savedPos.top}; transition: none;` 
+        : `bottom: ${savedPos.bottom}; right: ${savedPos.right};`;
+
     const controllerHtml = `
-        <!-- Font Size Controller (Shared) -->
-        <div id="cwtFontController" class="fixed bottom-6 right-6 z-[9999] flex items-center group">
-            <!-- 展開後的按鈕群 (預設隱藏且寬度為 0) -->
-            <div id="fontActionGroup" class="flex items-center gap-2 bg-white/95 backdrop-blur border border-gray-200 p-1.5 rounded-full shadow-xl mr-2 max-w-0 opacity-0 overflow-hidden transition-all duration-300 ease-out group-hover:max-w-xs group-hover:opacity-100 group-hover:px-2">
-                <button id="fontDecreaseBtn" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-[var(--color-morandi)] transition-colors focus:outline-none" title="縮小字體 (A-)">
-                    <i class="fa-solid fa-minus text-[10px]"></i><span class="text-xs ml-0.5 font-bold" style="letter-spacing:-1px;">A</span>
-                </button>
-                <button id="fontResetBtn" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-700 hover:bg-gray-100 hover:text-[var(--color-morandi)] transition-colors text-xs font-bold focus:outline-none" title="恢復預設 (100%)">
-                    A
-                </button>
-                <button id="fontIncreaseBtn" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-[var(--color-morandi)] transition-colors focus:outline-none" title="放大字體 (A+)">
-                    <i class="fa-solid fa-plus text-[10px]"></i><span class="text-xs ml-0.5 font-bold" style="letter-spacing:-1px;">A</span>
-                </button>
+        <!-- Tool Speed Dial (Shared & Draggable) -->
+        <div id="cwtFontController" class="fixed z-[9999] group touch-none flex justify-center" style="${posStyle}">
+            <!-- 展開後的按鈕群 (絕對定位向上展開，主按鈕位置不會改變) -->
+            <div id="fontActionGroup" class="absolute bottom-full mb-4 flex flex-col items-center gap-3 opacity-0 invisible translate-y-4 group-hover:opacity-100 group-hover:visible group-hover:translate-y-0 transition-all duration-300 ease-out">
+                
+                <!-- 未來功能：留言 -->
+                <div class="relative group/tooltip flex justify-center items-center">
+                    <button class="w-10 h-10 rounded-full flex items-center justify-center bg-gray-100 text-gray-400 shadow-md cursor-not-allowed border border-gray-200" title="留言通知 (未來擴充)">
+                        <i class="fa-solid fa-comment-dots text-sm"></i>
+                    </button>
+                    <!-- Tooltip -->
+                    <div class="absolute right-full mr-3 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible whitespace-nowrap transition-all shadow">
+                        留言通知 (準備中)
+                        <div class="absolute top-1/2 -right-1 -translate-y-1/2 border-4 border-transparent border-l-gray-800"></div>
+                    </div>
+                </div>
+
+                <!-- 放大字體 -->
+                <div class="relative group/tooltip flex justify-center items-center">
+                    <button id="fontIncreaseBtn" class="w-10 h-10 rounded-full flex items-center justify-center bg-white text-gray-600 hover:text-[var(--color-morandi)] hover:bg-gray-50 shadow-md border border-gray-200 transition-colors focus:outline-none">
+                        <i class="fa-solid fa-plus text-[10px] mr-0.5"></i><span class="text-xs font-bold">A</span>
+                    </button>
+                    <!-- Tooltip -->
+                    <div class="absolute right-full mr-3 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible whitespace-nowrap transition-all shadow">
+                        放大字體
+                        <div class="absolute top-1/2 -right-1 -translate-y-1/2 border-4 border-transparent border-l-gray-800"></div>
+                    </div>
+                </div>
+                
+                <!-- 恢復預設 -->
+                <div class="relative group/tooltip flex justify-center items-center">
+                    <button id="fontResetBtn" class="w-10 h-10 rounded-full flex items-center justify-center bg-white text-gray-700 hover:text-[var(--color-morandi)] hover:bg-gray-50 shadow-md border border-gray-200 transition-colors text-xs font-bold focus:outline-none">
+                        100%
+                    </button>
+                    <!-- Tooltip -->
+                    <div class="absolute right-full mr-3 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible whitespace-nowrap transition-all shadow">
+                        預設大小
+                        <div class="absolute top-1/2 -right-1 -translate-y-1/2 border-4 border-transparent border-l-gray-800"></div>
+                    </div>
+                </div>
+                
+                <!-- 縮小字體 -->
+                <div class="relative group/tooltip flex justify-center items-center">
+                    <button id="fontDecreaseBtn" class="w-10 h-10 rounded-full flex items-center justify-center bg-white text-gray-600 hover:text-[var(--color-morandi)] hover:bg-gray-50 shadow-md border border-gray-200 transition-colors focus:outline-none">
+                        <i class="fa-solid fa-minus text-[10px] mr-0.5"></i><span class="text-xs font-bold">A</span>
+                    </button>
+                    <!-- Tooltip -->
+                    <div class="absolute right-full mr-3 px-2 py-1 bg-gray-800 text-white text-xs rounded opacity-0 invisible group-hover/tooltip:opacity-100 group-hover/tooltip:visible whitespace-nowrap transition-all shadow">
+                        縮小字體
+                        <div class="absolute top-1/2 -right-1 -translate-y-1/2 border-4 border-transparent border-l-gray-800"></div>
+                    </div>
+                </div>
             </div>
             
-            <!-- 主要觸發按鈕 (A) -->
-            <button id="fontToggleMain" class="w-12 h-12 rounded-full bg-white/80 backdrop-blur border border-gray-200 shadow-lg flex items-center justify-center text-[var(--color-morandi)] hover:bg-white hover:shadow-xl transition-all duration-300 focus:outline-none z-10">
-                <i class="fa-solid fa-font text-lg"></i>
+            <!-- 主要觸發按鈕 (改為十字加號，Hover 時旋轉) -->
+            <button id="fontToggleMain" class="cursor-move w-14 h-14 rounded-full bg-[var(--color-morandi)] shadow-lg shadow-blue-900/20 flex items-center justify-center text-white hover:bg-[#5a7a96] hover:shadow-xl transition-all duration-300 focus:outline-none z-10 active:scale-95">
+                <i class="fa-solid fa-plus text-2xl transition-transform duration-300 group-hover:rotate-45"></i>
             </button>
         </div>
     `;
 
     document.body.insertAdjacentHTML('beforeend', controllerHtml);
     initGlobalFontSizeLogic();
+    initDraggableController();
 }
 
 /**
@@ -315,7 +361,6 @@ function initGlobalFontSizeLogic() {
         localStorage.setItem('cwt_font_scale', scale);
         currentScale = scale;
 
-        // 更新按鈕狀態 (簡單標示當前是否為預設)
         const resetBtn = document.getElementById('fontResetBtn');
         if (resetBtn) {
             if (scale === 100) {
@@ -336,5 +381,78 @@ function initGlobalFontSizeLogic() {
     if (incBtn) incBtn.addEventListener('click', (e) => { e.stopPropagation(); applyScale(currentScale + 5); });
     if (decBtn) decBtn.addEventListener('click', (e) => { e.stopPropagation(); applyScale(currentScale - 5); });
     if (resetBtn) resetBtn.addEventListener('click', (e) => { e.stopPropagation(); applyScale(100); });
+}
+
+/**
+ * 實作控制器拖拽功能
+ */
+function initDraggableController() {
+    const el = document.getElementById('cwtFontController');
+    const mainBtn = document.getElementById('fontToggleMain');
+    let isDragging = false;
+    let startX, startY, initialLeft, initialTop;
+
+    const onStart = (e) => {
+        isDragging = false;
+        const clientX = e.type === 'touchstart' ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type === 'touchstart' ? e.touches[0].clientY : e.clientY;
+        
+        startX = clientX;
+        startY = clientY;
+        
+        const rect = el.getBoundingClientRect();
+        initialLeft = rect.left;
+        initialTop = rect.top;
+
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onEnd);
+        document.addEventListener('touchmove', onMove, { passive: false });
+        document.addEventListener('touchend', onEnd);
+    };
+
+    const onMove = (e) => {
+        const clientX = e.type === 'touchmove' ? e.touches[0].clientX : e.clientX;
+        const clientY = e.type === 'touchmove' ? e.touches[0].clientY : e.clientY;
+        
+        const dx = clientX - startX;
+        const dy = clientY - startY;
+
+        // 判斷是否為拖拽 (位移超過 5px)
+        if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
+            isDragging = true;
+            // 修正位移：移除 right/bottom 屬性改用 left/top
+            el.style.bottom = 'auto';
+            el.style.right = 'auto';
+            el.style.left = `${initialLeft + dx}px`;
+            el.style.top = `${initialTop + dy}px`;
+            el.style.transition = 'none'; // 拖拽時取消動畫
+        }
+    };
+
+    const onEnd = () => {
+        if (isDragging) {
+            // 儲存位置
+            const pos = { left: el.style.left, top: el.style.top };
+            localStorage.setItem('cwt_font_pos', JSON.stringify(pos));
+        }
+        
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onEnd);
+        document.removeEventListener('touchmove', onMove);
+        document.removeEventListener('touchend', onEnd);
+
+        // 如果是拖拽，則暫時停用點擊後的 hover 觸發展開 (這裡靠 group-hover 處理，不需要太複雜)
+    };
+
+    mainBtn.addEventListener('mousedown', onStart);
+    mainBtn.addEventListener('touchstart', onStart, { passive: true });
+
+    // 防止在拖拽時產生的 click 事件觸發其他副作用 (如果有的話)
+    mainBtn.addEventListener('click', (e) => {
+        if (isDragging) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+    }, true);
 }
 
