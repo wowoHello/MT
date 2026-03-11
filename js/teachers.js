@@ -199,6 +199,55 @@ const statusMap = {
 
 const roleOptions = ['命題教師', '互審教師', '專審委員', '專家學者', '總召(專員)'];
 
+// --- 假資料：教師在各專案中的身分指派 (一位教師在同一梯次可擁有多種身分) ---
+const projectRolesDb = {
+    'P2026-01': [
+        { teacherId: 'T1001', roles: ['命題教師', '互審教師'] },
+        { teacherId: 'T1002', roles: ['命題教師'] },
+        { teacherId: 'T1003', roles: ['命題教師'] },
+        { teacherId: 'T1004', roles: ['命題教師'] },
+        { teacherId: 'T1005', roles: ['互審教師'] },
+        { teacherId: 'C2001', roles: ['專審委員'] },
+        { teacherId: 'C2002', roles: ['專審委員'] },
+        { teacherId: 'C2003', roles: ['專審委員'] },
+        { teacherId: 'C2004', roles: ['專家學者'] },
+        { teacherId: 'S3001', roles: ['總召(專員)'] },
+        { teacherId: 'S3002', roles: ['總召(專員)'] }
+    ],
+    'P2026-02': [
+        { teacherId: 'T1001', roles: ['命題教師'] }
+    ],
+    'P2025-02': [
+        { teacherId: 'T1001', roles: ['命題教師'] },
+        { teacherId: 'T1002', roles: ['互審教師'] },
+        { teacherId: 'T1006', roles: ['命題教師', '互審教師'] },
+        { teacherId: 'C2001', roles: ['專審委員'] },
+        { teacherId: 'C2002', roles: ['專審委員'] },
+        { teacherId: 'S3001', roles: ['總召(專員)'] }
+    ],
+    'P2025-01': [
+        { teacherId: 'T1006', roles: ['命題教師'] },
+        { teacherId: 'S3001', roles: ['總召(專員)'] }
+    ]
+};
+
+// 取得教師在指定梯次中的身分
+function getTeacherRolesInProject(teacherId, projectId) {
+    const projectRoles = projectRolesDb[projectId];
+    if (!projectRoles) return [];
+    const entry = projectRoles.find(r => r.teacherId === teacherId);
+    return entry ? entry.roles : [];
+}
+
+// 身分標籤的顏色對照
+const roleBadgeStyles = {
+    '命題教師': 'bg-blue-50 text-blue-600',
+    '互審教師': 'bg-teal-50 text-teal-600',
+    '專審委員': 'bg-purple-50 text-purple-600',
+    '專家學者': 'bg-violet-50 text-violet-600',
+    '總召(專員)': 'bg-amber-50 text-amber-600'
+};
+
 const projectStatusMap = {
     'active': { label: '進行中', color: 'bg-blue-100 text-blue-800' },
     'preparing': { label: '準備中', color: 'bg-amber-100 text-amber-800' },
@@ -223,9 +272,10 @@ document.addEventListener('DOMContentLoaded', () => {
     initActionButtons();
     initAssignProjectModal();
 
-    // 監聽梯次切換事件
+    // 監聽梯次切換事件 — 切換時重新渲染左側列表的身分標籤 + 統計 + 詳情
     document.addEventListener('projectChanged', () => {
         renderStats();
+        renderTeacherList();
         if (selectedTeacherId) renderDetail(selectedTeacherId);
     });
 });
@@ -287,13 +337,26 @@ function renderTeacherList() {
         return;
     }
 
+    const currentProjectId = localStorage.getItem('cwt_current_project') || 'P2026-01';
+
     container.innerHTML = filtered.map(t => {
         const isSelected = t.id === selectedTeacherId;
         const statusDot = t.accountStatus === 'active'
             ? '<span class="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></span>'
             : '<span class="w-2 h-2 rounded-full bg-red-400 flex-shrink-0"></span>';
 
-        const idPrefix = t.id.startsWith('T') ? '命題教師' : t.id.startsWith('C') ? '審題委員' : '總召/專員';
+        // 依據當前梯次取得此教師的身分（可能有多個）
+        const rolesInProject = getTeacherRolesInProject(t.id, currentProjectId);
+        let roleBadgesHtml = '';
+        if (rolesInProject.length > 0) {
+            roleBadgesHtml = rolesInProject.map(role => {
+                const style = roleBadgeStyles[role] || 'bg-gray-100 text-gray-600';
+                return `<span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${style}">${role}</span>`;
+            }).join(' ');
+        } else {
+            // 該教師不在此梯次中 — 顯示淡灰提示
+            roleBadgesHtml = '<span class="text-[10px] text-gray-400 italic">未參與此梯次</span>';
+        }
 
         return `
             <div class="teacher-list-item px-4 py-3 border-b border-gray-50 cursor-pointer hover:bg-gray-50 transition-colors ${isSelected ? 'list-item-active' : ''}"
@@ -313,8 +376,8 @@ function renderTeacherList() {
                             <span class="truncate">${t.school}</span>
                         </div>
                     </div>
-                    <div class="flex-shrink-0 text-right">
-                        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded ${t.id.startsWith('T') ? 'bg-blue-50 text-blue-600' : t.id.startsWith('C') ? 'bg-purple-50 text-purple-600' : 'bg-amber-50 text-amber-600'}">${idPrefix}</span>
+                    <div class="flex-shrink-0 flex flex-col items-end gap-0.5">
+                        ${roleBadgesHtml}
                     </div>
                 </div>
             </div>
