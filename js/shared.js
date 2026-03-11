@@ -20,7 +20,7 @@ document.addEventListener('DOMContentLoaded', () => {
     initNavbar();
 
     // 佈署共用字體縮放
-    initGlobalFontSize();
+    injectGlobalFontController();
 });
 
 /**
@@ -267,31 +267,74 @@ function logout() {
 }
 
 /**
- * 全域字體縮放控制器共用邏輯
+ * 注入全域字體縮放控制器 HTML
  */
-function initGlobalFontSize() {
+function injectGlobalFontController() {
+    // 如果已經存在就不要重複注入
+    if (document.getElementById('cwtFontController')) return;
+
+    const controllerHtml = `
+        <!-- Font Size Controller (Shared) -->
+        <div id="cwtFontController" class="fixed bottom-6 right-6 z-[9999] flex items-center group">
+            <!-- 展開後的按鈕群 (預設隱藏且寬度為 0) -->
+            <div id="fontActionGroup" class="flex items-center gap-2 bg-white/95 backdrop-blur border border-gray-200 p-1.5 rounded-full shadow-xl mr-2 max-w-0 opacity-0 overflow-hidden transition-all duration-300 ease-out group-hover:max-w-xs group-hover:opacity-100 group-hover:px-2">
+                <button id="fontDecreaseBtn" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-[var(--color-morandi)] transition-colors focus:outline-none" title="縮小字體 (A-)">
+                    <i class="fa-solid fa-minus text-[10px]"></i><span class="text-xs ml-0.5 font-bold" style="letter-spacing:-1px;">A</span>
+                </button>
+                <button id="fontResetBtn" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-700 hover:bg-gray-100 hover:text-[var(--color-morandi)] transition-colors text-xs font-bold focus:outline-none" title="恢復預設 (100%)">
+                    A
+                </button>
+                <button id="fontIncreaseBtn" class="w-8 h-8 rounded-full flex items-center justify-center text-gray-500 hover:bg-gray-100 hover:text-[var(--color-morandi)] transition-colors focus:outline-none" title="放大字體 (A+)">
+                    <i class="fa-solid fa-plus text-[10px]"></i><span class="text-xs ml-0.5 font-bold" style="letter-spacing:-1px;">A</span>
+                </button>
+            </div>
+            
+            <!-- 主要觸發按鈕 (A) -->
+            <button id="fontToggleMain" class="w-12 h-12 rounded-full bg-white/80 backdrop-blur border border-gray-200 shadow-lg flex items-center justify-center text-[var(--color-morandi)] hover:bg-white hover:shadow-xl transition-all duration-300 focus:outline-none z-10">
+                <i class="fa-solid fa-font text-lg"></i>
+            </button>
+        </div>
+    `;
+
+    document.body.insertAdjacentHTML('beforeend', controllerHtml);
+    initGlobalFontSizeLogic();
+}
+
+/**
+ * 全域字體縮放控制器互動邏輯
+ */
+function initGlobalFontSizeLogic() {
     const root = document.documentElement;
     let currentScale = parseFloat(localStorage.getItem('cwt_font_scale')) || 100;
 
-    // 無論哪一頁載入，都先套用 localStorage 存的 scale
-    if (currentScale < 90) currentScale = 90;
-    if (currentScale > 130) currentScale = 130;
-    root.style.fontSize = `${currentScale}%`;
-
-    // 如果該頁面有按鈕，則綁定（某些頁面可能有，某些可能包在 Component）
-    const incBtn = document.getElementById('fontIncreaseBtn');
-    const decBtn = document.getElementById('fontDecreaseBtn');
-    const resetBtn = document.getElementById('fontResetBtn');
-
+    // 初始化套用 scale
     const applyScale = (scale) => {
         if (scale < 90) scale = 90;
         if (scale > 130) scale = 130;
         root.style.fontSize = `${scale}%`;
         localStorage.setItem('cwt_font_scale', scale);
         currentScale = scale;
+
+        // 更新按鈕狀態 (簡單標示當前是否為預設)
+        const resetBtn = document.getElementById('fontResetBtn');
+        if (resetBtn) {
+            if (scale === 100) {
+                resetBtn.classList.add('bg-[var(--color-morandi)]/10', 'text-[var(--color-morandi)]');
+            } else {
+                resetBtn.classList.remove('bg-[var(--color-morandi)]/10', 'text-[var(--color-morandi)]');
+            }
+        }
     };
 
-    if (incBtn) incBtn.addEventListener('click', () => applyScale(currentScale + 5));
-    if (decBtn) decBtn.addEventListener('click', () => applyScale(currentScale - 5));
-    if (resetBtn) resetBtn.addEventListener('click', () => applyScale(100));
+    applyScale(currentScale);
+
+    // 綁定按鈕事件
+    const incBtn = document.getElementById('fontIncreaseBtn');
+    const decBtn = document.getElementById('fontDecreaseBtn');
+    const resetBtn = document.getElementById('fontResetBtn');
+
+    if (incBtn) incBtn.addEventListener('click', (e) => { e.stopPropagation(); applyScale(currentScale + 5); });
+    if (decBtn) decBtn.addEventListener('click', (e) => { e.stopPropagation(); applyScale(currentScale - 5); });
+    if (resetBtn) resetBtn.addEventListener('click', (e) => { e.stopPropagation(); applyScale(100); });
 }
+
