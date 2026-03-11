@@ -755,16 +755,45 @@ const initQuillEditor = () => {
     const container = document.getElementById('reviewQuillContainer');
     if (!container || reviewQuillInstance) return;
 
+    // 註冊自訂字體
+    const Font = Quill.import('formats/font');
+    Font.whitelist = [false, 'kaiti', 'times-new-roman'];
+    Quill.register(Font, true);
+
     reviewQuillInstance = new Quill(container, {
         theme: 'snow',
         placeholder: '請輸入審查意見...',
         modules: {
             toolbar: [
-                ['bold', 'italic', 'underline'],
+                [{ 'font': [false, 'kaiti', 'times-new-roman'] }],
+                [{ 'size': ['small', false, 'large', 'huge'] }],
+                ['bold', 'underline', 'strike'],
+                [{ 'color': [] }, { 'background': [] }],
+                [{ 'align': [] }],
                 [{ 'list': 'ordered' }, { 'list': 'bullet' }],
+                ['blockquote'],
+                ['link'],
                 ['clean']
             ]
         }
+    });
+
+    // 中文標點按鈕事件（含括弧配對插入邏輯）
+    document.querySelectorAll('.punct-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const char = btn.getAttribute('data-char');
+            const isPair = btn.hasAttribute('data-pair'); // 括弧類：「」『』（）
+            if (char && reviewQuillInstance) {
+                const range = reviewQuillInstance.getSelection(true);
+                reviewQuillInstance.insertText(range.index, char);
+                if (isPair) {
+                    // 括弧配對：左右同時插入，游標自動移到中間
+                    reviewQuillInstance.setSelection(range.index + 1);
+                } else {
+                    reviewQuillInstance.setSelection(range.index + char.length);
+                }
+            }
+        });
     });
 };
 
@@ -1337,6 +1366,28 @@ const initReviewModal = () => {
     document.getElementById('reviewBackdrop')?.addEventListener('click', closeReviewModal);
 
     document.getElementById('duplicateCheckBtn')?.addEventListener('click', showDuplicateCheck);
+
+    // 審查意見抽屜展收合
+    const drawerToggleBar = document.getElementById('drawerToggleBar');
+    if (drawerToggleBar) {
+        drawerToggleBar.addEventListener('click', (e) => {
+            // 避免點擊「試題重複比對」按鈕時觸發 toggle
+            if (e.target.closest('#duplicateCheckBtn')) return;
+            toggleReviewDrawer();
+        });
+    }
+};
+
+/** 切換審查意見抽屜展收合 */
+const toggleReviewDrawer = () => {
+    const body = document.getElementById('drawerBody');
+    const chevron = document.getElementById('drawerChevron');
+    const hint = document.getElementById('drawerHint');
+    if (!body) return;
+
+    const isOpen = body.classList.toggle('open');
+    chevron?.classList.toggle('open', isOpen);
+    if (hint) hint.textContent = isOpen ? '點擊收合' : '點擊展開';
 };
 
 const openReviewModal = (question, mode = 'review') => {
@@ -1377,6 +1428,15 @@ const openReviewModal = (question, mode = 'review') => {
         if (reviewQuillInstance) {
             reviewQuillInstance.setText('');
             reviewQuillInstance.enable();
+        }
+        // 預設抽屜收合，讓審題人員先專注看題目
+        const drawerBody = document.getElementById('drawerBody');
+        const drawerChevron = document.getElementById('drawerChevron');
+        const drawerHint = document.getElementById('drawerHint');
+        if (drawerBody) {
+            drawerBody.classList.remove('open');
+            drawerChevron?.classList.remove('open');
+            if (drawerHint) drawerHint.textContent = '點擊展開';
         }
     } else {
         actionArea.classList.add('hidden');
@@ -1555,7 +1615,8 @@ const renderHistoryTimeline = (q) => {
     const container = document.getElementById('reviewTimelineContainer');
     if (!container || !q.history) return;
 
-    container.innerHTML = q.history.map(entry => {
+    // 統一排序：新 → 舊（與 overview.html 一致）
+    container.innerHTML = [...q.history].reverse().map(entry => {
         const isReview = entry.action.includes('審') || entry.action.includes('決策');
         const dotColor = entry.action.includes('採用') && !entry.action.includes('不採用')
             ? 'bg-emerald-500'

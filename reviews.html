@@ -93,11 +93,44 @@
         /* Quill 審題意見編輯器 */
         .ql-toolbar.ql-snow { border: none !important; border-bottom: 1px solid #e5e7eb !important; background: #f9fafb; flex-shrink: 0; }
         .ql-container.ql-snow { border: none !important; font-family: 'Noto Sans TC', sans-serif; font-size: 0.9rem; }
-        #reviewQuillContainer { display: flex; flex-direction: column; height: 100px; border: 1px solid #d1d5db; border-radius: 0.5rem; overflow: hidden; }
+        #reviewQuillContainer { display: flex; flex-direction: column; height: 140px; border: 1px solid #d1d5db; border-radius: 0.5rem; overflow: hidden; }
         #reviewQuillContainer .ql-toolbar.ql-snow { flex-shrink: 0; }
         #reviewQuillContainer .ql-container.ql-snow { flex: 1; min-height: 0; }
         .ql-editor { min-height: 0; height: 100%; max-height: 100%; overflow-y: auto; line-height: 1.7; }
         .ql-editor:focus { outline: none; }
+
+        /* 自訂字體 for Quill */
+        .ql-font-kaiti { font-family: '標楷體', 'DFKai-SB', 'BiauKai', serif; }
+        .ql-font-times-new-roman { font-family: 'Times New Roman', Times, serif; }
+        .ql-snow .ql-picker.ql-font .ql-picker-label::before,
+        .ql-snow .ql-picker.ql-font .ql-picker-item::before { content: '預設字體'; }
+        .ql-snow .ql-picker.ql-font .ql-picker-label[data-value="kaiti"]::before,
+        .ql-snow .ql-picker.ql-font .ql-picker-item[data-value="kaiti"]::before { content: '標楷體'; font-family: '標楷體', 'DFKai-SB', serif; }
+        .ql-snow .ql-picker.ql-font .ql-picker-label[data-value="times-new-roman"]::before,
+        .ql-snow .ql-picker.ql-font .ql-picker-item[data-value="times-new-roman"]::before { content: 'Times New Roman'; font-family: 'Times New Roman', Times, serif; }
+
+        /* 審查意見抽屜 */
+        .drawer-toggle-bar {
+            cursor: pointer;
+            user-select: none;
+            transition: background-color 0.15s ease;
+        }
+        .drawer-toggle-bar:hover { background-color: #f3f4f6; }
+        .drawer-body {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.35s ease;
+        }
+        .drawer-body.open {
+            max-height: 50vh;
+            overflow-y: auto;
+        }
+        .drawer-chevron {
+            transition: transform 0.3s ease;
+        }
+        .drawer-chevron.open {
+            transform: rotate(180deg);
+        }
 
         /* 罐頭訊息按鈕 */
         .canned-btn {
@@ -112,6 +145,21 @@
             white-space: nowrap;
         }
         .canned-btn:hover { background: var(--color-terracotta); color: white; border-color: var(--color-terracotta); }
+
+        /* 中文標點按鈕 */
+        .punct-btn {
+            padding: 2px 8px;
+            font-size: 0.875rem;
+            color: #6b7280;
+            border: 1px solid #e5e7eb;
+            border-radius: 4px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            font-family: 'Noto Sans TC', sans-serif;
+            flex-shrink: 0;
+        }
+        .punct-btn:hover { background: var(--color-morandi); color: white; border-color: var(--color-morandi); }
 
         /* 七階段時程燈號條 */
         .stage-timeline {
@@ -360,31 +408,55 @@
                 <!-- JS 動態渲染 -->
             </div>
 
-            <!-- 底部操作區（僅審題模式顯示） -->
-            <div id="reviewActionArea"
-                class="flex-shrink-0 border-t border-gray-200 bg-white max-h-[45vh] overflow-y-auto">
-                <!-- 審查意見輸入 -->
-                <div class="px-5 py-3 border-b border-gray-100">
-                    <div class="flex items-center justify-between mb-1.5">
-                        <label class="text-sm font-bold text-gray-700 flex items-center gap-1.5">
+            <!-- 底部操作區（僅審題模式顯示）— 抽屜結構 -->
+            <div id="reviewActionArea" class="flex-shrink-0 border-t border-gray-200 bg-white">
+                <!-- 抽屜標題列（可點擊展收合） -->
+                <div id="drawerToggleBar"
+                    class="drawer-toggle-bar flex items-center justify-between px-5 py-2.5 border-b border-gray-100">
+                    <div class="flex items-center gap-2">
+                        <label class="text-sm font-bold text-gray-700 flex items-center gap-1.5 cursor-pointer">
                             <i class="fa-solid fa-comment-dots text-[var(--color-terracotta)]"></i> 審查意見
                         </label>
-                        <div class="flex items-center gap-2">
-                            <button id="duplicateCheckBtn"
-                                class="px-3 py-1 text-xs border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-500 font-medium transition-colors cursor-pointer">
-                                <i class="fa-solid fa-clone mr-1"></i> 試題重複比對
-                            </button>
-                        </div>
+                        <span id="drawerHint" class="text-xs text-gray-400">點擊展開</span>
                     </div>
-                    <!-- 罐頭訊息快速插入 -->
-                    <div class="flex gap-1.5 mb-2 overflow-x-auto custom-scroll pb-1" id="cannedMessagesContainer">
-                        <!-- JS 渲染罐頭訊息按鈕 -->
+                    <div class="flex items-center gap-2">
+                        <button id="duplicateCheckBtn"
+                            class="px-3 py-1 text-xs border border-gray-300 rounded-lg hover:bg-gray-50 text-gray-500 font-medium transition-colors cursor-pointer">
+                            <i class="fa-solid fa-clone mr-1"></i> 試題重複比對
+                        </button>
+                        <i id="drawerChevron" class="fa-solid fa-chevron-up drawer-chevron text-gray-400 text-sm"></i>
                     </div>
-                    <!-- Quill 編輯器 -->
-                    <div id="reviewQuillContainer"></div>
                 </div>
-                <!-- 決策按鈕列 -->
-                <div class="px-5 py-2.5 flex items-center justify-end gap-3" id="decisionButtonsContainer">
+                <!-- 可展收合的抽屜內容 -->
+                <div id="drawerBody" class="drawer-body">
+                    <div class="px-5 py-3">
+                        <!-- 罐頭訊息快速插入 -->
+                        <div class="flex gap-1.5 mb-2 overflow-x-auto custom-scroll pb-1" id="cannedMessagesContainer">
+                            <!-- JS 渲染罐頭訊息按鈕 -->
+                        </div>
+                        <!-- 標點符號列 -->
+                        <div class="flex items-center gap-1 mb-2 overflow-x-auto custom-scroll pb-1">
+                            <span class="text-[10px] text-gray-400 mr-1 flex-shrink-0">標點</span>
+                            <button class="punct-btn" data-char="，">，</button>
+                            <button class="punct-btn" data-char="。">。</button>
+                            <button class="punct-btn" data-char="、">、</button>
+                            <button class="punct-btn" data-char="；">；</button>
+                            <button class="punct-btn" data-char="：">：</button>
+                            <button class="punct-btn" data-char="「」" data-pair="true">「」</button>
+                            <button class="punct-btn" data-char="『』" data-pair="true">『』</button>
+                            <button class="punct-btn" data-char="（）" data-pair="true">（）</button>
+                            <button class="punct-btn" data-char="！">！</button>
+                            <button class="punct-btn" data-char="？">？</button>
+                            <button class="punct-btn" data-char="——">——</button>
+                            <button class="punct-btn" data-char="……">……</button>
+                        </div>
+                        <!-- Quill 編輯器 -->
+                        <div id="reviewQuillContainer"></div>
+                    </div>
+                </div>
+                <!-- 決策按鈕列（始終可見） -->
+                <div class="px-5 py-2.5 flex items-center justify-end gap-3 border-t border-gray-100"
+                    id="decisionButtonsContainer">
                     <!-- JS 依審查階段動態渲染按鈕 -->
                 </div>
             </div>
