@@ -108,9 +108,19 @@
                             <i class="fa-regular fa-eye-slash" id="eyeIcon"></i>
                         </button>
                     </div>
-                    <div class="text-right mt-1">
+                    <!-- Remember Me & Forgot Password -->
+                    <div class="flex items-center justify-between mt-2">
+                        <label class="flex items-center gap-2 cursor-pointer group">
+                            <div class="relative flex items-center justify-center">
+                                <input type="checkbox" id="rememberMe" class="peer sr-only">
+                                <div class="w-4 h-4 border border-gray-300 rounded flex items-center justify-center transition-colors peer-checked:bg-[var(--color-morandi)] peer-checked:border-[var(--color-morandi)] group-hover:border-[var(--color-morandi)]">
+                                    <i class="fa-solid fa-check text-white text-[10px] opacity-0 peer-checked:opacity-100 transition-opacity"></i>
+                                </div>
+                            </div>
+                            <span class="text-sm text-gray-600 group-hover:text-gray-800 transition-colors">記住登入狀態 (90天)</span>
+                        </label>
                         <button type="button" id="forgotPwdBtn"
-                            class="text-xs text-[var(--color-morandi)] hover:text-blue-700 hover:underline transition-colors focus:outline-none">忘記密碼？</button>
+                            class="text-sm text-[var(--color-morandi)] hover:text-blue-700 hover:underline transition-colors focus:outline-none">忘記密碼？</button>
                     </div>
                 </div>
 
@@ -130,6 +140,19 @@
                                 <i class="fa-solid fa-rotate-right"></i>
                             </button>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Security Notice -->
+                <div class="bg-blue-50/70 border border-blue-100 rounded-lg p-3 text-xs text-blue-800 flex items-start gap-2">
+                    <i class="fa-solid fa-shield-halved mt-0.5 text-[var(--color-morandi)]"></i>
+                    <div>
+                        <strong class="block mb-1 text-[var(--color-morandi)]">資安提示</strong>
+                        <ul class="list-disc pl-4 space-y-1 opacity-80">
+                            <li>請勿將帳號密碼交給他人使用。</li>
+                            <li>登入後若需離開座位，請確實登出系統。</li>
+                            <li>建議定期更換您的密碼以確保帳號安全。</li>
+                        </ul>
                     </div>
                 </div>
 

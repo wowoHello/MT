@@ -12,6 +12,7 @@ const form = document.getElementById('loginForm');
 const userInput = document.getElementById('username');
 const pwdInput = document.getElementById('password');
 const captchaInput = document.getElementById('captcha');
+const rememberMeCheckbox = document.getElementById('rememberMe');
 const togglePwdBtn = document.getElementById('togglePasswordBtn');
 const eyeIcon = document.getElementById('eyeIcon');
 const submitBtn = document.getElementById('submitBtn');
@@ -28,6 +29,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initialize Captcha
     refreshCaptcha();
+
+    // Check remembered account
+    checkRememberedAccount();
     
     // Bind Events
     document.getElementById('captchaCanvas').addEventListener('click', refreshCaptcha);
@@ -128,6 +132,26 @@ function togglePasswordVisibility() {
     }
 }
 
+// --- Remember Me Logic ---
+function checkRememberedAccount() {
+    const savedAccount = localStorage.getItem('cwt_remembered_account');
+    const savedTime = localStorage.getItem('cwt_remembered_time');
+    
+    if (savedAccount && savedTime) {
+        const timeDiff = new Date().getTime() - parseInt(savedTime, 10);
+        const daysDiff = timeDiff / (1000 * 3600 * 24);
+        
+        if (daysDiff <= 90) {
+            userInput.value = savedAccount;
+            rememberMeCheckbox.checked = true;
+        } else {
+            // Expired after 90 days
+            localStorage.removeItem('cwt_remembered_account');
+            localStorage.removeItem('cwt_remembered_time');
+        }
+    }
+}
+
 // --- Login Handler ---
 async function handleLogin(e) {
     e.preventDefault();
@@ -169,6 +193,15 @@ async function handleLogin(e) {
         };
         localStorage.setItem('cwt_user', JSON.stringify(userInfo));
         
+        // Handle Remember Me
+        if (rememberMeCheckbox.checked) {
+            localStorage.setItem('cwt_remembered_account', user);
+            localStorage.setItem('cwt_remembered_time', new Date().getTime().toString());
+        } else {
+            localStorage.removeItem('cwt_remembered_account');
+            localStorage.removeItem('cwt_remembered_time');
+        }
+
         // Success Toast Notification via SweetAlert2
         await Swal.fire({
             icon: 'success',
