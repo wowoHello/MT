@@ -782,7 +782,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 載入資料
     const projectId = localStorage.getItem('cwt_current_project') || 'P2026-01';
     loadPageData(projectId);
-    
+
     // Deep Linking: 檢查 URL 參數切換頁籤 (US-008)
     const urlParams = new URLSearchParams(window.location.search);
     const tabParam = urlParams.get('tab');
@@ -1985,10 +1985,10 @@ const renderFormEditorContent = (type) => {
                 <div class="flex items-center justify-between mb-3">
                     <label class="text-sm font-bold text-gray-700"><i class="fa-solid fa-layer-group mr-1 text-[var(--color-morandi)]"></i> ${subQuestionLabel}</label>
                     ${canManageSubQuestions
-                        ? `<button onclick="addSubQuestion()" class="text-xs px-3 py-1.5 bg-[var(--color-morandi)] text-white rounded-md hover:bg-[#5b7a95] transition-colors cursor-pointer font-medium">
+                ? `<button onclick="addSubQuestion()" class="text-xs px-3 py-1.5 bg-[var(--color-morandi)] text-white rounded-md hover:bg-[#5b7a95] transition-colors cursor-pointer font-medium">
                         <i class="fa-solid fa-plus mr-1"></i> 新增子題
                     </button>`
-                        : `<span class="text-xs font-medium text-gray-500">固定 2 題，不可新增或刪除</span>`}
+                : `<span class="text-xs font-medium text-gray-500">固定 2 題，不可新增或刪除</span>`}
                 </div>
                 <div class="space-y-4" id="subQuestionsContainer">`;
 
@@ -2058,10 +2058,10 @@ const renderSubQuestionBlock = (sq, idx, mode = 'choice', type = '') => {
             <div class="mb-3 space-y-2">
                 <label class="block text-xs font-bold text-gray-600">題目內容 <span class="text-red-400">*</span></label>
                 ${isReadGroup
-                    ? `<div class="editable-field bg-white text-sm text-gray-700 leading-relaxed min-h-[92px]" data-sub-stem="${idx}" onclick="activateQuillField(this, 'subStem-${idx}', '第 ${idx + 1} 題題目內容')">
+            ? `<div class="editable-field bg-white text-sm text-gray-700 leading-relaxed min-h-[92px]" data-sub-stem="${idx}" onclick="activateQuillField(this, 'subStem-${idx}', '第 ${idx + 1} 題題目內容')">
                         ${stemContent || '<span class="text-gray-400 italic">點擊此處開始編輯題目內容，可插入圖片...</span>'}
                     </div>`
-                    : `<input type="text" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)]"
+            : `<input type="text" class="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-[var(--color-morandi)]"
                     data-sub-stem="${idx}" value="${escapeHtml(sq.stem || '')}" placeholder="輸入子題內容...">`}
             </div>`;
 
@@ -2680,7 +2680,7 @@ const deleteQuestion = (questionId) => {
             // 目前 Demo 採用直接從陣列移除。
             // 實務上可能會是變更 status 為 'deleted'
             myQuestionsDb.splice(qIndex, 1);
-            
+
             Swal.fire({
                 icon: 'success',
                 title: '已刪除',
@@ -2960,8 +2960,8 @@ const showExamPreview = () => {
             html += `
                 <div class="mb-6 border-t border-gray-200 pt-5">
                     ${data.type === 'readGroup'
-                        ? `<div class="mb-3 flex items-start gap-2"><span class="font-bold shrink-0">${i + 1}.</span><div class="min-w-0 flex-1 leading-relaxed prose prose-sm max-w-none">${readGroupStemHtml}</div></div>`
-                        : `<p class="font-bold mb-2">${i + 1}. ${escapeHtml(sq.stem || '(題幹尚未填寫)')}</p>`}`;
+                    ? `<div class="mb-3 flex items-start gap-2"><span class="font-bold shrink-0">${i + 1}.</span><div class="min-w-0 flex-1 leading-relaxed prose prose-sm max-w-none">${readGroupStemHtml}</div></div>`
+                    : `<p class="font-bold mb-2">${i + 1}. ${escapeHtml(sq.stem || '(題幹尚未填寫)')}</p>`}`;
 
             if (config.subQuestionMode === 'freeResponse') {
                 html += `
